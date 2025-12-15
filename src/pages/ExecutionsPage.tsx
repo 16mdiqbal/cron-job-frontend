@@ -8,7 +8,7 @@ import { ExecutionList } from '@/components/executions/ExecutionList';
 import { ExecutionDetailsModal } from '@/components/executions/ExecutionDetailsModal';
 
 export const ExecutionsPage = () => {
-  const { executions, isLoading, error, page, totalPages, loadExecutions, setPage, setFilters, filters } =
+  const { executions, isLoading, error, page, limit, totalPages, loadExecutions, setPage, setFilters, filters } =
     useExecutionStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedExecution, setSelectedExecution] = useState<JobExecution | null>(null);
@@ -25,6 +25,29 @@ export const ExecutionsPage = () => {
   }, [loadExecutions]);
 
   const jobOptions = useMemo(() => jobs, [jobs]);
+
+  // Auto-refresh so scheduled (cron) executions appear without manual reload
+  useEffect(() => {
+    const refresh = () =>
+      loadExecutions({ ...filters, page, limit: filters.limit ?? limit }).catch(() => undefined);
+
+    refresh();
+
+    const onFocus = () => refresh();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [filters, limit, loadExecutions, page]);
 
   return (
     <div className="space-y-6">

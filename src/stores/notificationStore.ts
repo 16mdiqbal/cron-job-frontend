@@ -12,6 +12,10 @@ import {
 interface NotificationStore {
   notifications: Notification[];
   unreadCount: number;
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
   loading: boolean;
   error: string | null;
   
@@ -29,6 +33,10 @@ export const useNotificationStore = create<NotificationStore>()(
     (set) => ({
       notifications: [],
       unreadCount: 0,
+      total: 0,
+      page: 1,
+      perPage: 20,
+      totalPages: 0,
       loading: false,
       error: null,
 
@@ -36,9 +44,13 @@ export const useNotificationStore = create<NotificationStore>()(
         set({ loading: true, error: null });
         try {
           const data = await getNotifications(page, perPage, unreadOnly);
-          set({ 
+          set({
             notifications: data.notifications,
-            loading: false 
+            total: data.total,
+            page: data.page,
+            perPage: data.per_page,
+            totalPages: data.total_pages,
+            loading: false,
           });
         } catch (error: any) {
           set({ 
