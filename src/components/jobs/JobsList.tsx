@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useJobStore } from '@/stores/jobStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -31,6 +32,7 @@ export const JobsList = () => {
     setPage,
     setFilters,
   } = useJobStore();
+  const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +46,11 @@ export const JobsList = () => {
       setDeletingId(id);
       try {
         await deleteJob(id);
+        // Small delay to ensure backend has created the notification
+        await new Promise(resolve => setTimeout(resolve, 300));
+        // Refresh notifications after deleting job
+        await fetchUnreadCount();
+        await fetchNotifications(1, 10, true);
       } catch (error) {
         console.error('Failed to delete job:', error);
       } finally {
@@ -55,6 +62,11 @@ export const JobsList = () => {
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
       await toggleJobStatus(id, !currentStatus);
+      // Small delay to ensure backend has created the notification
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Refresh notifications after toggling job status
+      await fetchUnreadCount();
+      await fetchNotifications(1, 10, true);
     } catch (error) {
       console.error('Failed to toggle job status:', error);
     }

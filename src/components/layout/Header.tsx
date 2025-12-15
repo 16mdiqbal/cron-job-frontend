@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoutButton } from '@/components/auth/LogoutButton';
-import { Menu, Bell } from 'lucide-react';
+import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
@@ -30,9 +31,7 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         {/* Right side */}
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5" />
-          </Button>
+          <NotificationsDropdown />
 
           {/* User menu */}
           <div className="flex items-center space-x-2">
