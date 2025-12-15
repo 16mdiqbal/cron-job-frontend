@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useNotificationStore } from '@/stores/notificationStore';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 
 export const NotificationsDropdown = () => {
   const {
@@ -29,18 +29,22 @@ export const NotificationsDropdown = () => {
     // Fetch unread count on mount
     fetchUnreadCount();
     
-    // Poll for new notifications every 30 seconds
+    // Poll for new notifications every 10 seconds for faster updates
     const interval = setInterval(() => {
       fetchUnreadCount();
-    }, 30000);
+      // Also refresh notifications if dropdown is open
+      if (isOpen) {
+        fetchNotifications(1, 10, true); // Only fetch unread notifications
+      }
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  }, [fetchUnreadCount, fetchNotifications, isOpen]);
 
   useEffect(() => {
-    // Fetch notifications when dropdown opens
+    // Fetch only unread notifications when dropdown opens
     if (isOpen) {
-      fetchNotifications(1, 10);
+      fetchNotifications(1, 10, true);
     }
   }, [isOpen, fetchNotifications]);
 
@@ -58,9 +62,17 @@ export const NotificationsDropdown = () => {
     }
   };
 
-  const handleMarkAsRead = (e: React.MouseEvent, notificationId: string) => {
+  const handleMarkAsRead = async (e: React.MouseEvent, notificationId: string) => {
     e.stopPropagation();
-    markNotificationAsRead(notificationId);
+    await markNotificationAsRead(notificationId);
+    // Refresh to remove read notification from list
+    fetchNotifications(1, 10, true);
+  };
+
+  const handleMarkAllAsRead = async () => {
+    await markAllNotificationsAsRead();
+    // Refresh to clear all notifications from list since we're showing unread only
+    fetchNotifications(1, 10, true);
   };
 
   const handleDelete = (e: React.MouseEvent, notificationId: string) => {
@@ -87,7 +99,7 @@ export const NotificationsDropdown = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => markAllNotificationsAsRead()}
+              onClick={handleMarkAllAsRead}
               className="text-xs"
             >
               <CheckCheck className="h-4 w-4 mr-1" />
@@ -133,7 +145,7 @@ export const NotificationsDropdown = () => {
                       {notification.message}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                      {formatDistanceToNow(parseISO(notification.created_at), { addSuffix: true })}
                     </p>
                   </div>
                   <div className="flex gap-1 ml-2">

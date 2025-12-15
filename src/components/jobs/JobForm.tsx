@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useJobStore } from '@/stores/jobStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ export const JobForm = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentJob, isLoading, createJob, updateJob, loadJob, clearCurrentJob } = useJobStore();
+  const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
   const isEditMode = !!id;
   const [metadata, setMetadata] = useState<MetadataField[]>([{ key: '', value: '' }]);
   const [metadataError, setMetadataError] = useState<string>('');
@@ -164,6 +166,12 @@ export const JobForm = () => {
       } else {
         await createJob(jobData);
       }
+
+      // Small delay to ensure backend has created the notification
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Refresh notifications after creating/updating job
+      await fetchUnreadCount();
+      await fetchNotifications(1, 10, true);
 
       navigate('/jobs');
     } catch (error) {
