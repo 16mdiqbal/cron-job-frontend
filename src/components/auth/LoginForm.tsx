@@ -43,10 +43,13 @@ export const LoginForm = () => {
       await login(credentials);
       navigate('/dashboard');
     } catch (error: unknown) {
+      // Extract error message from various possible locations
+      const axiosError = error as any;
       const message =
-        (error as any)?.response?.data?.message ||
-        (error as Error)?.message ||
-        'Login failed. Please try again.';
+        axiosError?.response?.data?.error ||
+        axiosError?.response?.data?.message ||
+        axiosError?.message ||
+        'Login failed. Please check your credentials and try again.';
       setServerError(message);
     }
   };

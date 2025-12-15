@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobStore } from '@/stores/jobStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,12 +7,10 @@ import { Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const { jobs, loadJobs } = useJobStore();
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadJobs()
-      .catch((err) => console.error('Failed to load jobs:', err))
-      .finally(() => setIsLoading(false));
+      .catch((err) => console.error('Failed to load jobs:', err));
   }, [loadJobs]);
 
   // Calculate statistics from jobs
@@ -56,7 +54,7 @@ export const DashboardPage = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back, {user?.name || user?.email}!</p>
+        <p className="text-muted-foreground">Welcome back, {user?.username || user?.email}!</p>
       </div>
 
       {/* Stats Grid */}
