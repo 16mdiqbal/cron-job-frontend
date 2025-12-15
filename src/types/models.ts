@@ -31,15 +31,19 @@ export interface Job {
 
 export interface JobExecution {
   id: string;
-  jobId: string;
-  status: 'pending' | 'running' | 'success' | 'failed';
-  startedAt?: string;
-  completedAt?: string;
-  duration?: number;
-  response?: string;
-  error?: string;
-  retryAttempt: number;
-  createdAt: string;
+  job_id: string;
+  job_name?: string;
+  github_repo?: string;
+  status: 'running' | 'success' | 'failed';
+  trigger_type: 'scheduled' | 'manual';
+  started_at: string;
+  completed_at?: string;
+  duration_seconds?: number;
+  execution_type?: string;
+  target?: string;
+  response_status?: number;
+  error_message?: string;
+  output?: string;
 }
 
 export interface JobStatistics {

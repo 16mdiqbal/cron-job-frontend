@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
-import { Menu, Clock } from 'lucide-react';
+import { Menu, Clock, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { applyTheme, getInitialTheme, setStoredTheme, toggleTheme, type ThemeMode } from '@/services/utils/theme';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -11,6 +13,11 @@ interface HeaderProps {
 
 export const Header = ({ onMenuClick }: HeaderProps) => {
   const { user } = useAuthStore();
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 shadow-sm will-change-transform">
@@ -33,6 +40,21 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
 
         {/* Right side */}
         <div className="flex items-center space-x-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const next = toggleTheme(theme);
+              setTheme(next);
+              setStoredTheme(next);
+              applyTheme(next);
+            }}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+
           {/* Notifications */}
           <NotificationsDropdown />
 

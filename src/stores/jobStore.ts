@@ -5,6 +5,7 @@ import {
   jobService,
   type BulkUploadJobsResult,
   type CreateJobRequest,
+  type ExecuteJobOverrides,
   type JobFilters,
 } from '@/services/api/jobService';
 
@@ -26,7 +27,7 @@ interface JobState {
   updateJob: (id: string, job: Partial<CreateJobRequest>) => Promise<Job>;
   deleteJob: (id: string) => Promise<void>;
   toggleJobStatus: (id: string, is_active: boolean) => Promise<void>;
-  executeJob: (id: string) => Promise<void>;
+  executeJob: (id: string, overrides?: ExecuteJobOverrides) => Promise<void>;
   bulkUploadJobsCsv: (formData: FormData) => Promise<BulkUploadJobsResult>;
   setFilters: (filters: Partial<JobFilters>) => void;
   setPage: (page: number) => void;
@@ -211,10 +212,10 @@ export const useJobStore = create<JobState>()(
       /**
        * Execute a job immediately
        */
-      executeJob: async (id: string) => {
+      executeJob: async (id: string, overrides?: ExecuteJobOverrides) => {
         set({ isLoading: true, error: null });
         try {
-          await jobService.executeJob(id);
+          await jobService.executeJob(id, overrides);
           set({ isLoading: false });
         } catch (error: any) {
           const errorMessage =

@@ -1,6 +1,16 @@
 import { client } from './client';
 import type { Job, PaginatedResponse, PaginationParams } from '@/types';
 
+const getRepoType = (githubRepo?: string): 'api' | 'mobile' | 'web' | null => {
+  const repo = githubRepo?.toLowerCase();
+  if (!repo) return null;
+  if (repo === 'api' || repo === 'web' || repo === 'mobile') return repo;
+  if (repo.includes('api')) return 'api';
+  if (repo.includes('web')) return 'web';
+  if (repo.includes('mobile')) return 'mobile';
+  return null;
+};
+
 export interface CreateJobRequest {
   name: string;
   cron_expression: string;
@@ -23,6 +33,16 @@ export interface JobFilters extends PaginationParams {
   is_active?: boolean;
   github_repo?: 'api' | 'mobile' | 'web';
 }
+
+export type ExecuteJobOverrides = {
+  metadata?: Record<string, any>;
+  target_url?: string;
+  github_owner?: string;
+  github_repo?: string;
+  github_workflow_name?: string;
+  github_token?: string;
+  dispatch_url?: string;
+};
 
 export type BulkUploadJobsResult = {
   message: string;
@@ -71,10 +91,7 @@ export const jobService = {
     }
     
     if (params?.github_repo) {
-      console.log('Filtering by github_repo:', params.github_repo);
-      console.log('Jobs before filter:', filteredJobs.map((j: Job) => ({ name: j.name, github_repo: j.github_repo })));
-      filteredJobs = filteredJobs.filter((job: Job) => job.github_repo === params.github_repo);
-      console.log('Jobs after filter:', filteredJobs.map((j: Job) => ({ name: j.name, github_repo: j.github_repo })));
+      filteredJobs = filteredJobs.filter((job: Job) => getRepoType(job.github_repo) === params.github_repo);
     }
     
     // Apply client-side pagination
@@ -146,8 +163,8 @@ export const jobService = {
   /**
    * Execute a job immediately
    */
-  async executeJob(id: string): Promise<void> {
-    await client.post(`/jobs/${id}/execute`);
+  async executeJob(id: string, overrides?: ExecuteJobOverrides): Promise<void> {
+    await client.post(`/jobs/${id}/execute`, overrides || {});
   },
 
   /**

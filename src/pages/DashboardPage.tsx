@@ -1,70 +1,97 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { useJobStore } from '@/stores/jobStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { jobService } from '@/services/api/jobService';
+import { executionService, type ExecutionStatistics } from '@/services/api/executionService';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
-  const { total, loadJobs } = useJobStore();
-  const [activeJobs, setActiveJobs] = useState<number>(0);
+  const [jobCounts, setJobCounts] = useState({ total: 0, active: 0, inactive: 0 });
+  const [executionStats, setExecutionStats] = useState<ExecutionStatistics | null>(null);
 
   useEffect(() => {
-    loadJobs()
-      .catch((err) => console.error('Failed to load jobs:', err));
-  }, [loadJobs]);
+    let cancelled = false;
 
-  useEffect(() => {
-    jobService
-      .getAllJobs()
-      .then((allJobs) => {
-        setActiveJobs(allJobs.filter((job) => job.is_active).length);
-      })
-      .catch((err) => console.error('Failed to load jobs for dashboard stats:', err));
+    const refresh = async () => {
+      try {
+        const [allJobs, stats] = await Promise.all([
+          jobService.getAllJobs(),
+          executionService.getStatistics(),
+        ]);
+
+        if (cancelled) return;
+
+        const active = allJobs.filter((j) => j.is_active).length;
+        const total = allJobs.length;
+        setJobCounts({ total, active, inactive: total - active });
+        setExecutionStats(stats);
+      } catch (err) {
+        console.error('Failed to refresh dashboard stats:', err);
+      }
+    };
+
+    const onFocus = () => void refresh();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 15000);
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, []);
 
-  // Calculate statistics from jobs
-  const totalJobs = total;
-
-  // Note: Execution statistics would come from job executions data
-  // For now, we'll show 0 until execution tracking is implemented
-  const stats = [
-    {
-      title: 'Total Jobs',
-      value: totalJobs.toString(),
-      icon: Clock,
-      iconColor: 'text-blue-500',
-      description: `${activeJobs} active, ${totalJobs - activeJobs} inactive`,
-    },
-    {
-      title: 'Successful',
-      value: '0',
-      icon: CheckCircle,
-      iconColor: 'text-green-500',
-      description: 'Successful executions',
-    },
-    {
-      title: 'Failed',
-      value: '0',
-      icon: XCircle,
-      iconColor: 'text-red-500',
-      description: 'Failed executions',
-    },
-    {
-      title: 'Running',
-      value: '0',
-      icon: Activity,
-      iconColor: 'text-amber-500',
-      description: 'Currently running',
-    },
-  ];
+  const stats = useMemo(
+    () => [
+      {
+        title: 'Total Jobs',
+        value: String(jobCounts.total),
+        icon: Clock,
+        iconColor: 'text-blue-500',
+        description: `${jobCounts.active} active, ${jobCounts.inactive} inactive`,
+      },
+      {
+        title: 'Successful',
+        value: String(executionStats?.successful_executions ?? 0),
+        icon: CheckCircle,
+        iconColor: 'text-green-500',
+        description: `Success rate: ${executionStats ? Math.round(executionStats.success_rate) : 0}%`,
+      },
+      {
+        title: 'Failed',
+        value: String(executionStats?.failed_executions ?? 0),
+        icon: XCircle,
+        iconColor: 'text-red-500',
+        description: 'Failed executions',
+      },
+      {
+        title: 'Running',
+        value: String(executionStats?.running_executions ?? 0),
+        icon: Activity,
+        iconColor: 'text-amber-500',
+        description: 'Currently running',
+      },
+    ],
+    [jobCounts, executionStats]
+  );
 
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
         <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Welcome back, <span className="font-semibold text-indigo-600 dark:text-indigo-400">{user?.username || user?.email}</span>!</p>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          Welcome back,{' '}
+          <span className="font-semibold text-indigo-600 dark:text-indigo-400">{user?.username || user?.email}</span>!
+        </p>
       </div>
 
       {/* Stats Grid */}
@@ -72,7 +99,11 @@ export const DashboardPage = () => {
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900" style={{ animationDelay: `${index * 100}ms` }}>
+            <Card
+              key={stat.title}
+              className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 shadow-md bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900"
+              style={{ animationDelay: `${index * 100}ms` }}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-700 dark:text-gray-300">{stat.title}</CardTitle>
                 <div className="p-2 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 rounded-lg">
@@ -80,7 +111,9 @@ export const DashboardPage = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">{stat.value}</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                  {stat.value}
+                </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{stat.description}</p>
               </CardContent>
             </Card>
@@ -99,8 +132,7 @@ export const DashboardPage = () => {
         </CardHeader>
         <CardContent className="relative">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            This dashboard will display real-time statistics and information about your scheduled
-            jobs once you create them. Use the navigation menu to:
+            This dashboard displays live statistics about your scheduled jobs. Use the navigation menu to:
           </p>
           <ul className="space-y-3">
             <li className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">

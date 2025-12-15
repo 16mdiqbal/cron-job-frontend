@@ -4,6 +4,8 @@ import type { JobExecution, PaginatedResponse, PaginationParams } from '@/types'
 export interface ExecutionFilters extends PaginationParams {
   job_id?: string;
   status?: 'success' | 'failed' | 'running';
+  trigger_type?: 'scheduled' | 'manual';
+  execution_type?: 'github_actions' | 'webhook';
 }
 
 export interface ExecutionStatistics {
