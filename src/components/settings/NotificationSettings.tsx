@@ -1,31 +1,83 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Bell, Mail, CheckCircle, XCircle } from 'lucide-react';
+import { Bell, Mail, CheckCircle, XCircle, X } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
+import { getNotificationPreferences, updateNotificationPreferences } from '@/services/api/preferencesService';
 
 export const NotificationSettings = () => {
+  const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState({
     emailOnJobSuccess: true,
     emailOnJobFailure: true,
     emailOnJobDisabled: false,
-    browserNotifications: true,
+    browserNotifications: false,
     dailyDigest: false,
-    weeklyReport: true,
+    weeklyReport: false,
   });
 
+  useEffect(() => {
+    loadPreferences();
+  }, []);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  const loadPreferences = async () => {
+    if (!user) return;
+    
+    try {
+      setIsFetching(true);
+      const data = await getNotificationPreferences(user.id);
+      setPreferences({
+        emailOnJobSuccess: data.email_on_job_success,
+        emailOnJobFailure: data.email_on_job_failure,
+        emailOnJobDisabled: data.email_on_job_disabled,
+        browserNotifications: data.browser_notifications,
+        dailyDigest: data.daily_digest,
+        weeklyReport: data.weekly_report,
+      });
+    } catch (err: any) {
+      console.error('Failed to load preferences:', err);
+      setError(err.response?.data?.error || 'Failed to load notification preferences');
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (!user) return;
+    
     setIsLoading(true);
     setSuccess(null);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await updateNotificationPreferences(user.id, {
+        email_on_job_success: preferences.emailOnJobSuccess,
+        email_on_job_failure: preferences.emailOnJobFailure,
+        email_on_job_disabled: preferences.emailOnJobDisabled,
+        browser_notifications: preferences.browserNotifications,
+        daily_digest: preferences.dailyDigest,
+        weekly_report: preferences.weeklyReport,
+      });
+      
       setSuccess('Notification preferences saved successfully');
+    } catch (err: any) {
+      console.error('Failed to save preferences:', err);
+      setError(err.response?.data?.error || 'Failed to save notification preferences');
+    } finally {
       setIsLoading(false);
-      setTimeout(() => setSuccess(null), 3000);
-    }, 500);
+    }
   };
 
   const handleToggle = (key: keyof typeof preferences) => {
@@ -35,12 +87,39 @@ export const NotificationSettings = () => {
     }));
   };
 
+  if (isFetching) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <p className="text-muted-foreground">Loading preferences...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Success Message */}
       {success && (
-        <div className="p-3 rounded-md bg-green-50 border border-green-200">
+        <div className="p-3 rounded-md bg-green-50 border border-green-200 flex items-center justify-between">
           <p className="text-sm text-green-600">{success}</p>
+          <button
+            onClick={() => setSuccess(null)}
+            className="text-green-600 hover:text-green-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-3 rounded-md bg-red-50 border border-red-200 flex items-center justify-between">
+          <p className="text-sm text-red-600">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
