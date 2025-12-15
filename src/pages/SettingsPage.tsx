@@ -12,7 +12,7 @@ export const SettingsPage = () => {
 
   const tabs = [
     { id: 'profile' as SettingsTab, label: 'Profile', icon: User },
-    { id: 'notifications' as SettingsTab, label: 'Notifications', icon: Bell },
+    { id: 'notifications' as SettingsTab, label: 'Notification Preferences', icon: Bell },
     { id: 'email' as SettingsTab, label: 'Email', icon: Mail },
     { id: 'security' as SettingsTab, label: 'Security', icon: Lock },
   ];
