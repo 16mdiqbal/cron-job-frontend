@@ -16,6 +16,7 @@ export const UsersPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [createModalKey, setCreateModalKey] = useState(0);
 
   useEffect(() => {
     fetchUsers();
@@ -57,15 +58,23 @@ export const UsersPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">Manage users and permissions</p>
+      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Users</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage users and permissions</p>
+          </div>
+          <Button 
+            onClick={() => {
+              setCreateModalKey(prev => prev + 1);
+              setShowCreateModal(true);
+            }} 
+            className="gap-2 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all"
+          >
+            <UserPlus className="h-4 w-4" />
+            Create User
+          </Button>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="gap-2">
-          <UserPlus className="h-4 w-4" />
-          Create User
-        </Button>
       </div>
 
       {/* Error Display */}
@@ -83,9 +92,9 @@ export const UsersPage = () => {
       )}
 
       {/* Users Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All Users ({users.length})</CardTitle>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">All Users ({users.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -179,6 +188,7 @@ export const UsersPage = () => {
       {/* Create User Modal */}
       {showCreateModal && (
         <UserCreateForm
+          key={`create-user-modal-${createModalKey}`}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             fetchUsers();

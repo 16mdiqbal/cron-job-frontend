@@ -185,21 +185,21 @@ export const JobForm = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button variant="ghost" onClick={() => navigate('/jobs')} className="mb-4">
+      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+        <Button variant="ghost" onClick={() => navigate('/jobs')} className="mb-4 hover:bg-white dark:hover:bg-gray-700 transition-colors">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Jobs
         </Button>
-        <h1 className="text-3xl font-bold">{isEditMode ? 'Edit Job' : 'Create New Job'}</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">{isEditMode ? 'Edit Job' : 'Create New Job'}</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
           {isEditMode ? 'Update your scheduled job' : 'Create a new scheduled cron job'}
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Details</CardTitle>
-          <CardDescription>Configure your cron job settings</CardDescription>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">Job Details</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400">Configure your cron job settings</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
