@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,15 +11,23 @@ interface UserFormProps {
   onSuccess?: () => void;
 }
 
+const initialFormState: CreateUserRequest = {
+  username: '',
+  email: '',
+  password: '',
+  role: 'viewer',
+};
+
 export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
   const { createUser, isLoading, error } = useUserStore();
-  const [formData, setFormData] = useState<CreateUserRequest>({
-    username: '',
-    email: '',
-    password: '',
-    role: 'viewer',
-  });
+  const [formData, setFormData] = useState<CreateUserRequest>(initialFormState);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // Reset form data when component mounts
+  useEffect(() => {
+    setFormData(initialFormState);
+    setFormErrors({});
+  }, []);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -80,17 +88,19 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username */}
             <div className="space-y-2">
-              <Label htmlFor="username">
+              <Label htmlFor="create-username">
                 Username <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="username"
+                id="create-username"
+                name="create-username"
                 type="text"
                 value={formData.username}
                 onChange={(e) => handleChange('username', e.target.value)}
                 placeholder="john_doe"
                 className={formErrors.username ? 'border-red-500' : ''}
                 disabled={isLoading}
+                autoComplete="off"
               />
               {formErrors.username && (
                 <p className="text-sm text-red-600">{formErrors.username}</p>
@@ -99,34 +109,38 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
 
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email">
+              <Label htmlFor="create-email">
                 Email <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="email"
+                id="create-email"
+                name="create-email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="john@example.com"
                 className={formErrors.email ? 'border-red-500' : ''}
                 disabled={isLoading}
+                autoComplete="off"
               />
               {formErrors.email && <p className="text-sm text-red-600">{formErrors.email}</p>}
             </div>
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password">
+              <Label htmlFor="create-password">
                 Password <span className="text-red-500">*</span>
               </Label>
               <Input
-                id="password"
+                id="create-password"
+                name="create-password"
                 type="password"
                 value={formData.password}
                 onChange={(e) => handleChange('password', e.target.value)}
                 placeholder="Minimum 6 characters"
                 className={formErrors.password ? 'border-red-500' : ''}
                 disabled={isLoading}
+                autoComplete="new-password"
               />
               {formErrors.password && (
                 <p className="text-sm text-red-600">{formErrors.password}</p>
@@ -135,11 +149,12 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
 
             {/* Role */}
             <div className="space-y-2">
-              <Label htmlFor="role">
+              <Label htmlFor="create-role">
                 Role <span className="text-red-500">*</span>
               </Label>
               <select
-                id="role"
+                id="create-role"
+                name="create-role"
                 value={formData.role}
                 onChange={(e) => handleChange('role', e.target.value as CreateUserRequest['role'])}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

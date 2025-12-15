@@ -134,31 +134,39 @@ export const JobsList = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Cron Jobs</h2>
-        <Button onClick={() => navigate('/jobs/new')}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Job
-        </Button>
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Cron Jobs</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Manage and monitor your scheduled tasks</p>
+          </div>
+          <Button onClick={() => navigate('/jobs/new')} className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Job
+          </Button>
+        </div>
       </div>
 
       <JobFilters onFilterChange={handleFilterChange} />
 
       {jobs.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground mb-4">
+        <div className="text-center py-16 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900 dark:to-blue-900 rounded-full flex items-center justify-center mb-4">
+            <Plus className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg font-medium">
             No jobs found. Create your first job to get started.
           </p>
-          <Button onClick={() => navigate('/jobs/new')}>
+          <Button onClick={() => navigate('/jobs/new')} className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all">
             <Plus className="mr-2 h-4 w-4" />
             Create Job
           </Button>
         </div>
       ) : (
-        <div className="rounded-md border">
+        <div className="rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden bg-white dark:bg-gray-800">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>

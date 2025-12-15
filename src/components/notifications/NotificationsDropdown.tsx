@@ -83,24 +83,24 @@ export const NotificationsDropdown = () => {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-xs flex items-center justify-center shadow-md animate-pulse">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 max-h-[500px] overflow-y-auto">
-        <div className="flex items-center justify-between p-2">
-          <h3 className="font-semibold">Notifications</h3>
+      <DropdownMenuContent align="end" className="w-80 max-h-[500px] overflow-y-auto rounded-2xl shadow-xl border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h3>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleMarkAllAsRead}
-              className="text-xs"
+              className="text-xs hover:bg-white dark:hover:bg-gray-600 transition-colors"
             >
               <CheckCheck className="h-4 w-4 mr-1" />
               Mark all read
@@ -126,8 +126,8 @@ export const NotificationsDropdown = () => {
             {notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
-                className={`flex flex-col items-start p-3 cursor-pointer ${
-                  notification.is_read ? '' : 'bg-blue-50/50'
+                className={`flex flex-col items-start p-3 cursor-pointer hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all ${
+                  notification.is_read ? '' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500'
                 }`}
               >
                 <div className="flex items-start justify-between w-full">
