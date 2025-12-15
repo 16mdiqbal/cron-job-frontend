@@ -20,9 +20,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { JobFilters } from './JobFilters';
 import { Pagination } from './Pagination';
-import { CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X } from 'lucide-react';
 import type { Job } from '@/types';
 import { BulkUploadJobsCard } from './BulkUploadJobsCard';
+import { RunJobModal } from './RunJobModal';
 import { jobService } from '@/services/api/jobService';
 import { stringifyCsv } from '@/services/utils/csv';
 
@@ -45,7 +46,16 @@ const applyClientSideFilters = (
   }
 
   if (filters.github_repo) {
-    filtered = filtered.filter((job) => job.github_repo === filters.github_repo);
+    const getRepoType = (githubRepo?: string): 'api' | 'mobile' | 'web' | null => {
+      const repo = githubRepo?.toLowerCase();
+      if (!repo) return null;
+      if (repo === 'api' || repo === 'web' || repo === 'mobile') return repo;
+      if (repo.includes('api')) return 'api';
+      if (repo.includes('web')) return 'web';
+      if (repo.includes('mobile')) return 'mobile';
+      return null;
+    };
+    filtered = filtered.filter((job) => getRepoType(job.github_repo) === filters.github_repo);
   }
 
   return filtered;
@@ -76,6 +86,11 @@ export const JobsList = () => {
   const [selectingAll, setSelectingAll] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectionScope, setSelectionScope] = useState<'page' | 'allMatching'>('page');
+  const [runJob, setRunJob] = useState<Job | null>(null);
+  const [runNowNotice, setRunNowNotice] = useState<{ jobId: string; jobName: string } | null>(
+    null
+  );
+  const runNowNoticeTimeoutRef = useRef<number | null>(null);
   const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -115,10 +130,21 @@ export const JobsList = () => {
     }
   };
 
+  const scheduleRunNowNoticeDismiss = () => {
+    if (runNowNoticeTimeoutRef.current) window.clearTimeout(runNowNoticeTimeoutRef.current);
+    runNowNoticeTimeoutRef.current = window.setTimeout(() => setRunNowNotice(null), 10_000);
+  };
+
   const handleExecute = async (id: string) => {
     try {
-      await executeJob(id);
-      alert('Job executed successfully!');
+      const job = jobs.find((j) => j.id === id);
+      if (!job) return;
+      if (!job.is_active) {
+        setRunNowNotice({ jobId: job.id, jobName: job.name });
+        scheduleRunNowNoticeDismiss();
+        return;
+      }
+      setRunJob(job);
     } catch (error) {
       console.error('Failed to execute job:', error);
     }
@@ -208,25 +234,44 @@ export const JobsList = () => {
     );
   };
 
+  const getRepoType = (job: Job): 'api' | 'web' | 'mobile' | null => {
+    const repo = job.github_repo?.toLowerCase();
+    if (!repo) return null;
+    if (repo === 'api' || repo === 'web' || repo === 'mobile') return repo;
+    if (repo.includes('api')) return 'api';
+    if (repo.includes('web')) return 'web';
+    if (repo.includes('mobile')) return 'mobile';
+    return null;
+  };
+
+  const getRepoBadge = (job: Job) => {
+    const repoType = getRepoType(job);
+    if (!repoType) return null;
+
+    const variant = repoType === 'api' ? 'info' : repoType === 'web' ? 'secondary' : 'warning';
+    const label = repoType.toUpperCase();
+    return (
+      <Badge variant={variant} className="uppercase tracking-wide" title={`Repo type: ${label}`}>
+        {label}
+      </Badge>
+    );
+  };
+
   const handleFilterChange = (filters: any) => {
     setSelectedIds(new Set());
     setSelectionScope('page');
     setPage(1); // Reset to first page when filters change
-    
-    // When clearing, explicitly pass undefined for all filter fields to override store
-    if (Object.keys(filters).length === 0) {
-      setFilters({});
-      loadJobs({ 
-        page: 1, 
-        limit: 10,
-        search: undefined,
-        is_active: undefined,
-        github_repo: undefined
-      });
-    } else {
-      setFilters(filters);
-      loadJobs({ ...filters, page: 1 });
-    }
+
+    // IMPORTANT: the store merges filters; if a key is omitted it won't clear.
+    // Always provide explicit `undefined` for "All" selections to override prior values.
+    const nextFilters = {
+      search: 'search' in filters ? (filters.search || undefined) : undefined,
+      is_active: 'is_active' in filters ? filters.is_active : undefined,
+      github_repo: 'github_repo' in filters ? filters.github_repo : undefined,
+    };
+
+    setFilters(nextFilters);
+    loadJobs({ ...nextFilters, page: 1, limit: 10 });
   };
 
   const handlePageChange = (newPage: number) => {
@@ -408,6 +453,65 @@ export const JobsList = () => {
       <JobFilters onFilterChange={handleFilterChange} />
 
       {showBulkUpload && <BulkUploadJobsCard onClose={() => setShowBulkUpload(false)} />}
+      {runJob && (
+        <RunJobModal
+          open={Boolean(runJob)}
+          job={runJob}
+          onClose={() => setRunJob(null)}
+          onRun={async (payload) => {
+            await executeJob(runJob.id, payload);
+            alert('Job triggered successfully!');
+          }}
+        />
+      )}
+
+      {runNowNotice && (
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 p-3 text-sm"
+          onMouseEnter={() => {
+            if (runNowNoticeTimeoutRef.current) window.clearTimeout(runNowNoticeTimeoutRef.current);
+          }}
+          onMouseLeave={scheduleRunNowNoticeDismiss}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5" />
+              <div>
+                <div>
+                  Job <span className="font-semibold">{runNowNotice.jobName}</span> is inactive.
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="text-indigo-700 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200 underline underline-offset-4"
+                    onClick={async () => {
+                      try {
+                        await toggleJobStatus(runNowNotice.jobId, true);
+                        await refreshNotificationsAfterBulk();
+                        setRunNowNotice(null);
+                      } catch (e) {
+                        console.error('Failed to enable job:', e);
+                      }
+                    }}
+                  >
+                    Enable job
+                  </button>
+                  <span className="text-xs text-muted-foreground">Then click Run Now again.</span>
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRunNowNotice(null)}
+              title="Dismiss"
+              className="hover:bg-white dark:hover:bg-gray-700"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {jobs.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -509,6 +613,7 @@ export const JobsList = () => {
                   />
                 </TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Repo</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Cron Expression</TableHead>
                 <TableHead>Target URL</TableHead>
@@ -530,6 +635,7 @@ export const JobsList = () => {
                     />
                   </TableCell>
                   <TableCell className="font-medium">{job.name}</TableCell>
+                  <TableCell>{getRepoBadge(job) || <span className="text-muted-foreground">-</span>}</TableCell>
                   <TableCell>{getStatusBadge(job)}</TableCell>
                   <TableCell>
                     <code className="text-sm bg-muted px-2 py-1 rounded">
@@ -561,7 +667,7 @@ export const JobsList = () => {
                         onClick={() => handleExecute(job.id)}
                         title="Run Now"
                       >
-                        <Play className="h-4 w-4 text-green-600" />
+                        <Play className={job.is_active ? 'h-4 w-4 text-green-600' : 'h-4 w-4 text-muted-foreground'} />
                       </Button>
                       <Button
                         variant="ghost"

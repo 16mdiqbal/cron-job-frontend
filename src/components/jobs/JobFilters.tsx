@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ export const JobFilters = ({ onFilterChange }: JobFiltersProps) => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('all');
   const [repository, setRepository] = useState<string>('all');
+  const didMountRef = useRef(false);
 
   const buildAndApplyFilters = (currentSearch?: string, currentStatus?: string, currentRepo?: string) => {
     const filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web' } = {};
@@ -34,6 +35,20 @@ export const JobFilters = ({ onFilterChange }: JobFiltersProps) => {
   const handleApplyFilters = () => {
     buildAndApplyFilters();
   };
+
+  // Live search with debounce (no need to click "Apply Filters")
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      buildAndApplyFilters(search, undefined, undefined);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);
