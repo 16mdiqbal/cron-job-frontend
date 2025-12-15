@@ -53,8 +53,13 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
         } catch (error: unknown) {
+          // Extract error message from backend response
+          const axiosError = error as any;
           const errorMessage =
-            (error as any)?.response?.data?.message || (error as Error)?.message || 'Login failed';
+            axiosError?.response?.data?.error ||
+            axiosError?.response?.data?.message ||
+            axiosError?.message ||
+            'Login failed. Please check your credentials and try again.';
           set({
             error: errorMessage,
             isLoading: false,
@@ -83,9 +88,11 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
-          // Clear localStorage
+          // Clear all storage
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('auth-storage'); // Clear Zustand persist cache
+          sessionStorage.clear(); // Clear session storage
         }
       },
 
@@ -111,6 +118,8 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        localStorage.removeItem('auth-storage'); // Clear Zustand persist cache
+        sessionStorage.clear(); // Clear session storage
         set({
           user: null,
           token: null,

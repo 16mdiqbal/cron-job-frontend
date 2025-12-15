@@ -41,8 +41,11 @@ client.interceptors.response.use(
           // Unauthorized - Clear token and redirect to login
           // Only clear and redirect if NOT on login page (avoid loops)
           if (!isLoginPage) {
+            // Clear all auth-related storage including Zustand persist cache
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            localStorage.removeItem('auth-storage'); // Zustand persist key
+            sessionStorage.clear(); // Clear session storage too
             window.location.href = '/login';
           }
           break;
