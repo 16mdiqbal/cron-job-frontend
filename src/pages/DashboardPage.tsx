@@ -1,21 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useJobStore } from '@/stores/jobStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { jobService } from '@/services/api/jobService';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
-  const { jobs, loadJobs } = useJobStore();
+  const { total, loadJobs } = useJobStore();
+  const [activeJobs, setActiveJobs] = useState<number>(0);
 
   useEffect(() => {
     loadJobs()
       .catch((err) => console.error('Failed to load jobs:', err));
   }, [loadJobs]);
 
+  useEffect(() => {
+    jobService
+      .getAllJobs()
+      .then((allJobs) => {
+        setActiveJobs(allJobs.filter((job) => job.is_active).length);
+      })
+      .catch((err) => console.error('Failed to load jobs for dashboard stats:', err));
+  }, []);
+
   // Calculate statistics from jobs
-  const totalJobs = jobs.length;
-  const activeJobs = jobs.filter((job) => job.is_active).length;
+  const totalJobs = total;
 
   // Note: Execution statistics would come from job executions data
   // For now, we'll show 0 until execution tracking is implemented

@@ -24,6 +24,21 @@ export interface JobFilters extends PaginationParams {
   github_repo?: 'api' | 'mobile' | 'web';
 }
 
+export type BulkUploadJobsResult = {
+  message: string;
+  dry_run: boolean;
+  stats: {
+    original_column_count: number;
+    original_row_count: number;
+    removed_column_count: number;
+    removed_empty_row_count: number;
+  };
+  created_count: number;
+  error_count: number;
+  errors: Array<{ row?: number; job_name?: string; error: string; message?: string }>;
+  jobs: Array<{ id?: string; name: string; is_active?: boolean; cron_expression?: string }>;
+};
+
 /**
  * Job Service
  * Handles all job-related API calls
@@ -88,6 +103,14 @@ export const jobService = {
   },
 
   /**
+   * Get all jobs (no pagination) for exporting.
+   */
+  async getAllJobs(): Promise<Job[]> {
+    const { data } = await client.get('/jobs');
+    return data.jobs || [];
+  },
+
+  /**
    * Create a new job
    */
   async createJob(job: CreateJobRequest): Promise<Job> {
@@ -143,6 +166,16 @@ export const jobService = {
   async getCronDescription(expression: string): Promise<string> {
     const { data } = await client.post('/jobs/cron-description', { expression });
     return data.description || '';
+  },
+
+  /**
+   * Bulk upload jobs via CSV (multipart/form-data)
+   */
+  async bulkUploadJobsCsv(formData: FormData): Promise<BulkUploadJobsResult> {
+    const { data } = await client.post('/jobs/bulk-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
   },
 };
 

@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Job, PaginatedResponse } from '@/types';
-import { jobService, type CreateJobRequest, type JobFilters } from '@/services/api/jobService';
+import {
+  jobService,
+  type BulkUploadJobsResult,
+  type CreateJobRequest,
+  type JobFilters,
+} from '@/services/api/jobService';
 
 interface JobState {
   jobs: Job[];
@@ -22,6 +27,7 @@ interface JobState {
   deleteJob: (id: string) => Promise<void>;
   toggleJobStatus: (id: string, is_active: boolean) => Promise<void>;
   executeJob: (id: string) => Promise<void>;
+  bulkUploadJobsCsv: (formData: FormData) => Promise<BulkUploadJobsResult>;
   setFilters: (filters: Partial<JobFilters>) => void;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
@@ -213,6 +219,27 @@ export const useJobStore = create<JobState>()(
         } catch (error: any) {
           const errorMessage =
             error?.response?.data?.message || error?.message || 'Failed to execute job';
+          set({
+            error: errorMessage,
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      /**
+       * Bulk upload jobs from a normalized CSV (multipart/form-data).
+       */
+      bulkUploadJobsCsv: async (formData: FormData) => {
+        set({ isLoading: true, error: null });
+        try {
+          const result = await jobService.bulkUploadJobsCsv(formData);
+          await get().loadJobs({ ...get().filters, page: 1 });
+          set({ isLoading: false });
+          return result;
+        } catch (error: any) {
+          const errorMessage =
+            error?.response?.data?.message || error?.message || 'Failed to bulk upload jobs';
           set({
             error: errorMessage,
             isLoading: false,
