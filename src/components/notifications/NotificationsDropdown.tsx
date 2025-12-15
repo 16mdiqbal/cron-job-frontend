@@ -97,21 +97,25 @@ export const NotificationsDropdown = () => {
         </div>
         <DropdownMenuSeparator />
         
-        {loading ? (
+        {loading && (
           <div className="p-4 text-center text-sm text-muted-foreground">
             Loading notifications...
           </div>
-        ) : notifications.length === 0 ? (
+        )}
+        
+        {!loading && notifications.length === 0 && (
           <div className="p-4 text-center text-sm text-muted-foreground">
             No notifications
           </div>
-        ) : (
+        )}
+        
+        {!loading && notifications.length > 0 && (
           <>
             {notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
                 className={`flex flex-col items-start p-3 cursor-pointer ${
-                  !notification.is_read ? 'bg-blue-50/50' : ''
+                  notification.is_read ? '' : 'bg-blue-50/50'
                 }`}
               >
                 <div className="flex items-start justify-between w-full">

@@ -26,7 +26,7 @@ interface NotificationStore {
 
 export const useNotificationStore = create<NotificationStore>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       notifications: [],
       unreadCount: 0,
       loading: false,
