@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { JobFilters } from './JobFilters';
 import { Pagination } from './Pagination';
-import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Job } from '@/types';
 import { BulkUploadJobsCard } from './BulkUploadJobsCard';
 import { RunJobModal } from './RunJobModal';
@@ -114,12 +114,18 @@ export const JobsList = () => {
 
   useEffect(() => {
     const fromUrl = searchParams.get('category');
+    const sortBy = searchParams.get('sort') || null;
+    const sortDir = searchParams.get('dir') || null;
     const fromStorage = localStorage.getItem('jobs-category') || null;
     const selected = (fromUrl || fromStorage || 'all').trim();
 
     const category = selected === 'all' ? undefined : selected;
-    setFilters({ category, page: 1 });
-    loadJobs({ ...filters, category, page: 1, limit: 10 })
+    const nextSortBy =
+      sortBy === 'name' || sortBy === 'repo' || sortBy === 'status' ? sortBy : undefined;
+    const nextSortDir = sortDir === 'desc' ? 'desc' : sortDir === 'asc' ? 'asc' : undefined;
+
+    setFilters({ category, sort_by: nextSortBy, sort_dir: nextSortDir, page: 1 });
+    loadJobs({ ...filters, category, sort_by: nextSortBy, sort_dir: nextSortDir, page: 1, limit: 10 })
       .catch((err) => console.error('Failed to load jobs:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -133,6 +139,30 @@ export const JobsList = () => {
     setSearchParams(next, { replace: true });
     setFilters({ category, page: 1 });
     loadJobs({ ...filters, category, page: 1, limit: 10 }).catch(() => undefined);
+  };
+
+  const setSort = (sort_by: 'name' | 'repo' | 'status') => {
+    const currentBy = filters.sort_by;
+    const currentDir = filters.sort_dir || 'asc';
+    const nextDir: 'asc' | 'desc' =
+      currentBy === sort_by ? (currentDir === 'asc' ? 'desc' : 'asc') : 'asc';
+
+    const next = new URLSearchParams(searchParams);
+    next.set('sort', sort_by);
+    next.set('dir', nextDir);
+    setSearchParams(next, { replace: true });
+
+    setFilters({ sort_by, sort_dir: nextDir, page: 1 });
+    loadJobs({ ...filters, sort_by, sort_dir: nextDir, page: 1, limit: 10 }).catch(() => undefined);
+  };
+
+  const sortIcon = (key: 'name' | 'repo' | 'status') => {
+    if (filters.sort_by !== key) return <span className="inline-block w-4" />;
+    return filters.sort_dir === 'desc' ? (
+      <ChevronDown className="ml-1 h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+    ) : (
+      <ChevronUp className="ml-1 h-4 w-4 text-indigo-600 dark:text-indigo-300" />
+    );
   };
 
   const categoryTabs = useMemo(() => {
@@ -691,9 +721,36 @@ export const JobsList = () => {
                     className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
                 </TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Repo</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => setSort('name')}
+                    className="inline-flex items-center hover:text-indigo-700 dark:hover:text-indigo-300"
+                  >
+                    Name
+                    {sortIcon('name')}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => setSort('repo')}
+                    className="inline-flex items-center hover:text-indigo-700 dark:hover:text-indigo-300"
+                  >
+                    Repo
+                    {sortIcon('repo')}
+                  </button>
+                </TableHead>
+                <TableHead>
+                  <button
+                    type="button"
+                    onClick={() => setSort('status')}
+                    className="inline-flex items-center hover:text-indigo-700 dark:hover:text-indigo-300"
+                  >
+                    Status
+                    {sortIcon('status')}
+                  </button>
+                </TableHead>
                 <TableHead>Cron Expression</TableHead>
                 <TableHead>Target URL</TableHead>
                 <TableHead>Last Execution</TableHead>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +18,12 @@ export const NotificationsDropdown = () => {
     notifications,
     unreadCount,
     loading,
+    rangePreset,
+    fromDate,
+    toDate,
+    setRangePreset,
+    setFromDate,
+    setToDate,
     fetchNotifications,
     fetchUnreadCount,
     markNotificationAsRead,
@@ -40,6 +48,11 @@ export const NotificationsDropdown = () => {
 
     return () => clearInterval(interval);
   }, [fetchUnreadCount, fetchNotifications, isOpen]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    if (isOpen) fetchNotifications(1, 10, true);
+  }, [rangePreset, fromDate, toDate, isOpen, fetchUnreadCount, fetchNotifications]);
 
   useEffect(() => {
     // Fetch only unread notifications when dropdown opens
@@ -94,7 +107,48 @@ export const NotificationsDropdown = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 max-h-[500px] overflow-y-auto rounded-2xl shadow-xl border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <h3 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h3>
+          <div className="flex-1">
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h3>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Range</div>
+              <div className="w-44">
+                <Select
+                  value={rangePreset}
+                  onChange={(e) => setRangePreset(e.target.value as any)}
+                  className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                >
+                  <option value="all">All time</option>
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="custom">Custom</option>
+                </Select>
+              </div>
+            </div>
+
+            {rangePreset === 'custom' && (
+              <div className="mt-2 flex gap-2">
+                <div className="w-36">
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    aria-label="From date"
+                    className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="w-36">
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    aria-label="To date"
+                    className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           {unreadCount > 0 && (
             <Button
               variant="ghost"

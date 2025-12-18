@@ -40,21 +40,25 @@ npm run type-check
 - Authentication (JWT)
 - Jobs
   - Create/edit/delete
+  - Category (defaults to “General”)
+  - Category tabs on Jobs table (persists)
   - Enable/disable
+  - Table sorting (name/repo/status)
   - Bulk upload via CSV + template download
   - Bulk actions (enable/disable/delete)
   - Export/download jobs as CSV/JSON
   - “Run now” modal with per-run overrides (not saved)
 - Executions
   - History list + details modal
-  - Filters + auto-refresh so scheduled runs appear without manual reload
+  - Filters (including date range) + auto-refresh so scheduled runs appear without manual reload
 - Notifications
-  - Inbox/history page with unread filter, mark read/all read, delete
+  - Inbox/history page with unread filter, date range (All time / 7 days / 30 days / custom), mark read/all read, delete
   - Header dropdown with unread badge
 - Settings
   - **Notification Preferences** (configuration lives here)
+  - **Job Categories** (admin-managed list used in Jobs)
 - Dashboard
-  - Live totals and execution statistics (auto-refresh)
+  - Live totals and execution statistics (auto-refresh) + date range filter for stats
 - Theme
   - Light/Dark toggle (persists in localStorage)
 
