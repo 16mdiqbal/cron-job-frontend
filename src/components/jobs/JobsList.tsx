@@ -302,7 +302,21 @@ export const JobsList = () => {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleString();
+    return new Date(dateString).toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
+  };
+
+  const getNextExecutionTextClassName = (dateString?: string) => {
+    if (!dateString) return null;
+    const nextMs = new Date(dateString).getTime();
+    if (Number.isNaN(nextMs)) return null;
+    const diffMs = nextMs - Date.now();
+    if (diffMs <= 0) return null;
+
+    const oneHourMs = 60 * 60 * 1000;
+    const twelveHoursMs = 12 * oneHourMs;
+    if (diffMs <= oneHourMs) return 'text-orange-600 dark:text-orange-400 font-medium';
+    if (diffMs <= twelveHoursMs) return 'text-sky-600 dark:text-sky-400 font-medium';
+    return null;
   };
 
   const getStatusBadge = (job: Job) => {
@@ -782,7 +796,11 @@ export const JobsList = () => {
                     {job.target_url || job.github_workflow_name || '-'}
                   </TableCell>
                   <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>
-                  <TableCell className="text-sm">{formatDate(job.next_execution_at)}</TableCell>
+                  <TableCell className="text-sm">
+                    <span className={getNextExecutionTextClassName(job.next_execution_at) || undefined}>
+                      {formatDate(job.next_execution_at)}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button

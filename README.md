@@ -43,6 +43,7 @@ npm run type-check
   - Category (defaults to “General”)
   - Category tabs on Jobs table (persists)
   - Enable/disable
+  - Next Execution highlighting (JST): < 1 hour (orange), < 12 hours (sky)
   - Table sorting (name/repo/status)
   - Bulk upload via CSV + template download
   - Bulk actions (enable/disable/delete)
