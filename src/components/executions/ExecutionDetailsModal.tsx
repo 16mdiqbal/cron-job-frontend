@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { JobExecution } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,14 @@ const statusBadgeVariant = (status: JobExecution['status']) => {
 
 export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
   if (!open) return null;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -97,4 +106,3 @@ export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
 }
 
 export default ExecutionDetailsModal;
-

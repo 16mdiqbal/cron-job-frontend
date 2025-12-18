@@ -54,7 +54,11 @@ export function ExecutionList({ executions, onViewDetails }: Props) {
                 {e.target || '-'}
               </TableCell>
               <TableCell className="text-right">
-                <Button variant="outline" size="sm" onClick={() => onViewDetails(e)}>
+                <Button
+                  size="sm"
+                  onClick={() => onViewDetails(e)}
+                  className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white shadow-sm hover:shadow-md transition-all"
+                >
                   View
                 </Button>
               </TableCell>
@@ -67,4 +71,3 @@ export function ExecutionList({ executions, onViewDetails }: Props) {
 }
 
 export default ExecutionList;
-

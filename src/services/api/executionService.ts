@@ -6,6 +6,8 @@ export interface ExecutionFilters extends PaginationParams {
   status?: 'success' | 'failed' | 'running';
   trigger_type?: 'scheduled' | 'manual';
   execution_type?: 'github_actions' | 'webhook';
+  from?: string;
+  to?: string;
 }
 
 export interface ExecutionStatistics {
@@ -15,6 +17,10 @@ export interface ExecutionStatistics {
   running_executions: number;
   success_rate: number;
   average_duration_seconds: number;
+  range?: {
+    from: string | null;
+    to: string | null;
+  };
 }
 
 /**
@@ -48,7 +54,10 @@ export const executionService = {
   /**
    * Get execution history for a specific job
    */
-  async getJobExecutions(jobId: string, params?: { status?: string; limit?: number }): Promise<JobExecution[]> {
+  async getJobExecutions(
+    jobId: string,
+    params?: { status?: string; limit?: number; trigger_type?: string; from?: string; to?: string }
+  ): Promise<JobExecution[]> {
     const { data } = await client.get(`/jobs/${jobId}/executions`, { params });
     return data.executions || [];
   },
@@ -56,8 +65,7 @@ export const executionService = {
   /**
    * Get execution statistics
    */
-  async getStatistics(jobId?: string): Promise<ExecutionStatistics> {
-    const params = jobId ? { job_id: jobId } : undefined;
+  async getStatistics(params?: { job_id?: string; from?: string; to?: string }): Promise<ExecutionStatistics> {
     const { data } = await client.get('/executions/statistics', { params });
     return data;
   },

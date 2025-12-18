@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useJobStore } from '@/stores/jobStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
@@ -26,10 +26,16 @@ import { BulkUploadJobsCard } from './BulkUploadJobsCard';
 import { RunJobModal } from './RunJobModal';
 import { jobService } from '@/services/api/jobService';
 import { stringifyCsv } from '@/services/utils/csv';
+import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
 
 const applyClientSideFilters = (
   jobs: Job[],
-  filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web' }
+  filters: {
+    search?: string;
+    is_active?: boolean;
+    github_repo?: 'api' | 'mobile' | 'web';
+    category?: string;
+  }
 ) => {
   let filtered = jobs;
 
@@ -58,11 +64,16 @@ const applyClientSideFilters = (
     filtered = filtered.filter((job) => getRepoType(job.github_repo) === filters.github_repo);
   }
 
+  if (filters.category) {
+    filtered = filtered.filter((job) => job.category === filters.category);
+  }
+
   return filtered;
 };
 
 export const JobsList = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     jobs,
     isLoading,
@@ -79,6 +90,7 @@ export const JobsList = () => {
     filters,
   } = useJobStore();
   const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
+  const [categories, setCategories] = useState<JobCategory[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -94,10 +106,47 @@ export const JobsList = () => {
   const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    loadJobs().catch((err) => {
-      console.error('Failed to load jobs:', err);
-    });
-  }, [loadJobs]);
+    jobCategoryService
+      .list(false)
+      .then(setCategories)
+      .catch((e) => console.error('Failed to load job categories:', e));
+  }, []);
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('category');
+    const fromStorage = localStorage.getItem('jobs-category') || null;
+    const selected = (fromUrl || fromStorage || 'all').trim();
+
+    const category = selected === 'all' ? undefined : selected;
+    setFilters({ category, page: 1 });
+    loadJobs({ ...filters, category, page: 1, limit: 10 })
+      .catch((err) => console.error('Failed to load jobs:', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setCategorySelection = (category: string | undefined) => {
+    const value = category || 'all';
+    localStorage.setItem('jobs-category', value);
+    const next = new URLSearchParams(searchParams);
+    if (!category || category === 'all') next.delete('category');
+    else next.set('category', category);
+    setSearchParams(next, { replace: true });
+    setFilters({ category, page: 1 });
+    loadJobs({ ...filters, category, page: 1, limit: 10 }).catch(() => undefined);
+  };
+
+  const categoryTabs = useMemo(() => {
+    const active = categories.filter((c) => c.is_active).sort((a, b) => a.name.localeCompare(b.name));
+    const base: Array<{ key: string; label: string; category?: string }> = [
+      { key: 'all', label: 'All', category: undefined },
+      { key: 'general', label: 'General', category: 'general' },
+    ];
+    for (const c of active) {
+      if (c.slug === 'general') continue;
+      base.push({ key: c.slug, label: c.name, category: c.slug });
+    }
+    return base;
+  }, [categories]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this job?')) {
@@ -257,18 +306,27 @@ export const JobsList = () => {
     );
   };
 
-  const handleFilterChange = (filters: any) => {
-    setSelectedIds(new Set());
-    setSelectionScope('page');
-    setPage(1); // Reset to first page when filters change
+  const handleFilterChange = (incoming: any) => {
+    const safeIncoming = incoming ?? {};
 
     // IMPORTANT: the store merges filters; if a key is omitted it won't clear.
     // Always provide explicit `undefined` for "All" selections to override prior values.
     const nextFilters = {
-      search: 'search' in filters ? (filters.search || undefined) : undefined,
-      is_active: 'is_active' in filters ? filters.is_active : undefined,
-      github_repo: 'github_repo' in filters ? filters.github_repo : undefined,
+      search: 'search' in safeIncoming ? (safeIncoming.search || undefined) : undefined,
+      is_active: 'is_active' in safeIncoming ? safeIncoming.is_active : undefined,
+      github_repo: 'github_repo' in safeIncoming ? safeIncoming.github_repo : undefined,
+      category: filters.category,
     };
+
+    // Prevent refetch loops if the same filters are applied repeatedly (e.g. debounced search).
+    const unchanged =
+      nextFilters.search === filters.search &&
+      nextFilters.is_active === filters.is_active &&
+      nextFilters.github_repo === filters.github_repo;
+    if (unchanged && page === 1) return;
+
+    setSelectedIds(new Set());
+    setSelectionScope('page');
 
     setFilters(nextFilters);
     loadJobs({ ...nextFilters, page: 1, limit: 10 });
@@ -376,6 +434,7 @@ export const JobsList = () => {
         search: filters.search,
         is_active: filters.is_active,
         github_repo: filters.github_repo,
+        category: filters.category,
       });
       const ok = window.confirm(
         `Select all ${matching.length} job(s) matching current filters? This includes jobs not visible on this page.`
@@ -448,6 +507,26 @@ export const JobsList = () => {
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {categoryTabs.map((t) => {
+          const active = (filters.category || undefined) === t.category;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setCategorySelection(t.category)}
+              className={
+                active
+                  ? 'px-4 py-2 rounded-xl text-sm font-medium bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md'
+                  : 'px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600'
+              }
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </div>
 
       <JobFilters onFilterChange={handleFilterChange} />

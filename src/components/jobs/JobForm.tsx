@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CreateJobRequest } from '@/services/api/jobService';
+import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
 
 interface MetadataField {
   key: string;
@@ -23,6 +24,7 @@ interface JobFormData {
   github_owner: string;
   github_repo: string;
   github_workflow_name: string;
+  category?: string;
 }
 
 export const JobForm = () => {
@@ -33,6 +35,7 @@ export const JobForm = () => {
   const isEditMode = !!id;
   const [metadata, setMetadata] = useState<MetadataField[]>([{ key: '', value: '' }]);
   const [metadataError, setMetadataError] = useState<string>('');
+  const [categories, setCategories] = useState<JobCategory[]>([]);
 
   const {
     register,
@@ -49,6 +52,7 @@ export const JobForm = () => {
       github_owner: '',
       github_repo: 'api',
       github_workflow_name: '',
+      category: 'general',
     },
   });
 
@@ -59,6 +63,10 @@ export const JobForm = () => {
     if (id) {
       loadJob(id);
     }
+    jobCategoryService
+      .list(false)
+      .then(setCategories)
+      .catch((e) => console.error('Failed to load job categories:', e));
     return () => {
       clearCurrentJob();
     };
@@ -74,6 +82,7 @@ export const JobForm = () => {
         github_owner: currentJob.github_owner || '',
         github_repo: currentJob.github_repo || 'api',
         github_workflow_name: currentJob.github_workflow_name || '',
+        category: currentJob.category || 'general',
       });
       
       // Load metadata
@@ -152,6 +161,7 @@ export const JobForm = () => {
         github_repo: data.github_repo,
         github_workflow_name: data.github_workflow_name.trim(),
         metadata: metadataObj,
+        category: data.category || 'general',
       };
 
       // Add target_url if provided
@@ -240,6 +250,23 @@ export const JobForm = () => {
                 />
                 <p className="text-sm text-muted-foreground">
                   Format: minute hour day month day-of-week (e.g., */5 * * * * = every 5 minutes)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category (Optional)</Label>
+                <Select id="category" {...register('category')}>
+                  <option value="general">General</option>
+                  {categories
+                    .filter((c) => c.is_active && c.slug !== 'general')
+                    .map((c) => (
+                      <option key={c.id} value={c.slug}>
+                        {c.name}
+                      </option>
+                    ))}
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Categories are managed by admins in Settings → Job Categories.
                 </p>
               </div>
 

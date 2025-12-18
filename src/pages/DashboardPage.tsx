@@ -4,20 +4,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
 import { jobService } from '@/services/api/jobService';
 import { executionService, type ExecutionStatistics } from '@/services/api/executionService';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const [jobCounts, setJobCounts] = useState({ total: 0, active: 0, inactive: 0 });
   const [executionStats, setExecutionStats] = useState<ExecutionStatistics | null>(null);
+  const [rangePreset, setRangePreset] = useState<'7d' | '30d' | 'custom'>(() => '7d');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+
+  const buildStatsParams = () => {
+    if (rangePreset === 'custom') {
+      const params: { from?: string; to?: string } = {};
+      if (fromDate) params.from = fromDate;
+      if (toDate) params.to = toDate;
+      return params;
+    }
+
+    const now = new Date();
+    const days = rangePreset === '30d' ? 30 : 7;
+    const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    // Send date-only strings; backend interprets `to` as inclusive day for UX.
+    return { from: from.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+  };
 
   useEffect(() => {
     let cancelled = false;
 
     const refresh = async () => {
       try {
+        const statsParams = buildStatsParams();
         const [allJobs, stats] = await Promise.all([
           jobService.getAllJobs(),
-          executionService.getStatistics(),
+          executionService.getStatistics(statsParams),
         ]);
 
         if (cancelled) return;
@@ -43,12 +64,12 @@ export const DashboardPage = () => {
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
-      cancelled = true
+      cancelled = true;
       window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, []);
+  }, [rangePreset, fromDate, toDate]);
 
   const stats = useMemo(
     () => [
@@ -87,11 +108,60 @@ export const DashboardPage = () => {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
-          Welcome back,{' '}
-          <span className="font-semibold text-indigo-600 dark:text-indigo-400">{user?.username || user?.email}</span>!
-        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+              Dashboard
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              Welcome back,{' '}
+              <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                {user?.username || user?.email}
+              </span>
+              !
+            </p>
+          </div>
+
+          <div className="w-full sm:w-auto">
+            <div className="rounded-2xl border border-indigo-100 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 backdrop-blur-sm shadow-sm p-4">
+              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+                Stats date range
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select
+                  value={rangePreset}
+                  onChange={(e) => setRangePreset(e.target.value as any)}
+                  className="bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                >
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="custom">Custom</option>
+                </Select>
+                {rangePreset === 'custom' && (
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => setFromDate(e.target.value)}
+                      aria-label="From date"
+                      className="bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                    />
+                    <Input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => setToDate(e.target.value)}
+                      aria-label="To date"
+                      className="bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-[11px] text-muted-foreground">
+                Applies to Success/Failed/Running counts.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Stats Grid */}
