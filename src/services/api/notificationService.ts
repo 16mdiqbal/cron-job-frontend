@@ -1,5 +1,10 @@
 import client from './client';
 
+export interface NotificationRangeParams {
+  from?: string;
+  to?: string;
+}
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -19,10 +24,12 @@ export interface GetNotificationsResponse {
   page: number;
   per_page: number;
   total_pages: number;
+  range?: { from: string | null; to: string | null };
 }
 
 export interface UnreadCountResponse {
   unread_count: number;
+  range?: { from: string | null; to: string | null };
 }
 
 /**
@@ -34,14 +41,18 @@ export interface UnreadCountResponse {
 export const getNotifications = async (
   page: number = 1,
   perPage: number = 20,
-  unreadOnly: boolean = false
+  unreadOnly: boolean = false,
+  range?: NotificationRangeParams
 ): Promise<GetNotificationsResponse> => {
   const params = new URLSearchParams({
     page: page.toString(),
     per_page: perPage.toString(),
-    unread_only: unreadOnly.toString()
+    unread_only: unreadOnly.toString(),
   });
-  
+
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+
   const response = await client.get<GetNotificationsResponse>(
     `/notifications?${params.toString()}`
   );
@@ -51,8 +62,12 @@ export const getNotifications = async (
 /**
  * Get count of unread notifications
  */
-export const getUnreadCount = async (): Promise<number> => {
-  const response = await client.get<UnreadCountResponse>('/notifications/unread-count');
+export const getUnreadCount = async (range?: NotificationRangeParams): Promise<number> => {
+  const params = new URLSearchParams();
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const response = await client.get<UnreadCountResponse>(`/notifications/unread-count${suffix}`);
   return response.data.unread_count;
 };
 

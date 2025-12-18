@@ -34,6 +34,8 @@ export interface JobFilters extends PaginationParams {
   is_active?: boolean;
   github_repo?: 'api' | 'mobile' | 'web';
   category?: string;
+  sort_by?: 'name' | 'repo' | 'status';
+  sort_dir?: 'asc' | 'desc';
 }
 
 export type ExecuteJobOverrides = {
@@ -76,6 +78,8 @@ export const jobService = {
     const jobs = data.jobs || [];
     const page = params?.page || 1;
     const limit = params?.limit || 10;
+    const sortBy = params?.sort_by;
+    const sortDir = params?.sort_dir || 'asc';
     
     // Apply client-side filtering if needed
     let filteredJobs = jobs;
@@ -98,6 +102,36 @@ export const jobService = {
 
     if (params?.category) {
       filteredJobs = filteredJobs.filter((job: Job) => (job as any).category === params.category);
+    }
+
+    // Apply client-side sorting (before pagination)
+    if (sortBy) {
+      const dir = sortDir === 'desc' ? -1 : 1;
+      filteredJobs = [...filteredJobs].sort((a: Job, b: Job) => {
+        if (sortBy === 'name') {
+          const av = (a.name || '').toLowerCase();
+          const bv = (b.name || '').toLowerCase();
+          return av.localeCompare(bv) * dir;
+        }
+
+        if (sortBy === 'repo') {
+          const at = getRepoType(a.github_repo) || '';
+          const bt = getRepoType(b.github_repo) || '';
+          const typeCmp = at.localeCompare(bt);
+          if (typeCmp !== 0) return typeCmp * dir;
+          const ar = (a.github_repo || '').toLowerCase();
+          const br = (b.github_repo || '').toLowerCase();
+          return ar.localeCompare(br) * dir;
+        }
+
+        // status: prefer Active first on asc, Inactive first on desc
+        const aActive = Boolean((a as any).is_active);
+        const bActive = Boolean((b as any).is_active);
+        if (aActive === bActive) return 0;
+        const aVal = aActive ? 0 : 1;
+        const bVal = bActive ? 0 : 1;
+        return (aVal - bVal) * dir;
+      });
     }
     
     // Apply client-side pagination

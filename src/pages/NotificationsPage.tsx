@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, CheckCheck, RefreshCcw, Trash2 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { useNotificationStore } from '@/stores/notificationStore';
 
 const getNotificationTypeColor = (type: string) => {
@@ -30,6 +32,12 @@ export const NotificationsPage = () => {
     perPage,
     totalPages,
     loading,
+    rangePreset,
+    fromDate,
+    toDate,
+    setRangePreset,
+    setFromDate,
+    setToDate,
     fetchNotifications,
     fetchUnreadCount,
     markNotificationAsRead,
@@ -38,9 +46,27 @@ export const NotificationsPage = () => {
   } = useNotificationStore();
 
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const unreadOnlyRef = useRef(unreadOnly);
+  const pageRef = useRef(page);
+  const perPageRef = useRef(perPage);
 
-  const refresh = async (nextPage = page) => {
-    await Promise.all([fetchUnreadCount(), fetchNotifications(nextPage, perPage, unreadOnly)]);
+  useEffect(() => {
+    unreadOnlyRef.current = unreadOnly;
+  }, [unreadOnly]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    perPageRef.current = perPage;
+  }, [perPage]);
+
+  const refresh = async (nextPage?: number) => {
+    const effectivePage = nextPage ?? pageRef.current;
+    const effectivePerPage = perPageRef.current;
+    const effectiveUnreadOnly = unreadOnlyRef.current;
+    await Promise.all([fetchUnreadCount(), fetchNotifications(effectivePage, effectivePerPage, effectiveUnreadOnly)]);
   };
 
   useEffect(() => {
@@ -50,13 +76,15 @@ export const NotificationsPage = () => {
       refresh().catch(() => undefined);
     }, 15000);
     return () => window.clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchNotifications, fetchUnreadCount]);
 
   useEffect(() => {
     refresh(1).catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unreadOnly]);
+
+  useEffect(() => {
+    refresh(1).catch(() => undefined);
+  }, [rangePreset, fromDate, toDate]);
 
   const canPrev = page > 1;
   const canNext = totalPages > 0 && page < totalPages;
@@ -82,7 +110,46 @@ export const NotificationsPage = () => {
             <div className="text-sm text-muted-foreground">
               Unread: <span className="font-medium text-foreground">{unreadCount}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-indigo-100 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 px-3 py-2 shadow-sm">
+                <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Range</div>
+                <div className="w-44">
+                  <Select
+                    value={rangePreset}
+                    onChange={(e) => setRangePreset(e.target.value as any)}
+                    className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                  >
+                    <option value="all">All time</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="custom">Custom</option>
+                  </Select>
+                </div>
+
+                {rangePreset === 'custom' && (
+                  <div className="flex gap-2">
+                    <div className="w-40">
+                      <Input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        aria-label="From date"
+                        className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="w-40">
+                      <Input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        aria-label="To date"
+                        className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 variant={unreadOnly ? 'default' : 'outline'}
                 onClick={() => setUnreadOnly((v) => !v)}
@@ -91,6 +158,7 @@ export const NotificationsPage = () => {
                 <Bell className="mr-2 h-4 w-4" />
                 {unreadOnly ? 'Showing unread' : 'Show unread only'}
               </Button>
+
               <Button variant="outline" onClick={() => refresh().catch(() => undefined)} disabled={loading}>
                 <RefreshCcw className="mr-2 h-4 w-4" />
                 Refresh
