@@ -3,11 +3,14 @@ import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { EmailSettings } from '@/components/settings/EmailSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
-import { User, Bell, Mail, Lock } from 'lucide-react';
+import { JobCategoriesSettings } from '@/components/settings/JobCategoriesSettings';
+import { useAuthStore } from '@/stores/authStore';
+import { User, Bell, Mail, Lock, Tags } from 'lucide-react';
 
-type SettingsTab = 'profile' | 'notifications' | 'email' | 'security';
+type SettingsTab = 'profile' | 'notifications' | 'email' | 'security' | 'categories';
 
 export const SettingsPage = () => {
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
   const tabs = [
@@ -15,6 +18,9 @@ export const SettingsPage = () => {
     { id: 'notifications' as SettingsTab, label: 'Notification Preferences', icon: Bell },
     { id: 'email' as SettingsTab, label: 'Email', icon: Mail },
     { id: 'security' as SettingsTab, label: 'Security', icon: Lock },
+    ...(user?.role === 'admin'
+      ? [{ id: 'categories' as SettingsTab, label: 'Job Categories', icon: Tags }]
+      : []),
   ];
 
   return (
@@ -54,6 +60,7 @@ export const SettingsPage = () => {
         {activeTab === 'notifications' && <NotificationSettings />}
         {activeTab === 'email' && <EmailSettings />}
         {activeTab === 'security' && <SecuritySettings />}
+        {activeTab === 'categories' && user?.role === 'admin' && <JobCategoriesSettings />}
       </div>
     </div>
   );

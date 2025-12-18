@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { useExecutionStore } from '@/stores/executionStore';
 import { jobService } from '@/services/api/jobService';
 import type { Job, JobExecution } from '@/types';
@@ -12,11 +13,59 @@ export const ExecutionsPage = () => {
     useExecutionStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedExecution, setSelectedExecution] = useState<JobExecution | null>(null);
+  const [rangePreset, setRangePreset] = useState<'all' | '7d' | '30d' | 'custom'>(() => 'all');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const isLoadingRef = useRef(false);
+  const filtersRef = useRef(filters);
+  const pageRef = useRef(page);
+  const limitRef = useRef(limit);
 
   useEffect(() => {
-    loadExecutions({ page: 1, limit: filters.limit ?? 20 }).catch((e) =>
-      console.error('Failed to load executions:', e)
-    );
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
+    limitRef.current = limit;
+  }, [limit]);
+
+  const queryKey = useMemo(() => {
+    const query = {
+      page,
+      limit: filters.limit ?? limit,
+      job_id: filters.job_id ?? null,
+      status: filters.status ?? null,
+      trigger_type: filters.trigger_type ?? null,
+      execution_type: filters.execution_type ?? null,
+      from: filters.from ?? null,
+      to: filters.to ?? null,
+    };
+    return JSON.stringify(query);
+  }, [
+    page,
+    limit,
+    filters.limit,
+    filters.job_id,
+    filters.status,
+    filters.trigger_type,
+    filters.execution_type,
+    filters.from,
+    filters.to,
+  ]);
+
+  useEffect(() => {
+    loadExecutions({ page: 1, limit: filters.limit ?? 20 })
+      .catch((e) => console.error('Failed to load executions:', e))
+      .finally(() => setHasLoadedOnce(true));
     jobService
       .getAllJobs()
       .then(setJobs)
@@ -28,10 +77,37 @@ export const ExecutionsPage = () => {
 
   // Auto-refresh so scheduled (cron) executions appear without manual reload
   useEffect(() => {
-    const refresh = () =>
-      loadExecutions({ ...filters, page, limit: filters.limit ?? limit }).catch(() => undefined);
+    const shouldAutoRefresh = (() => {
+      const to = filtersRef.current.to as string | undefined;
+      if (!to) return true; // no upper bound: assume "live" view
+
+      // If to is date-only and it's before today, this is a historical view -> don't auto-refresh.
+      if (to.length === 10) {
+        const today = new Date().toISOString().slice(0, 10);
+        return to >= today;
+      }
+
+      // If datetime, refresh only when it reaches today or later.
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const toDate = new Date(to);
+      return !Number.isNaN(toDate.getTime()) && toDate >= todayStart;
+    })();
+
+    const refresh = () => {
+      // Prevent flicker/overlap: don't start a new request while one is in-flight.
+      if (isLoadingRef.current) return;
+
+      const currentFilters = filtersRef.current;
+      const currentPage = pageRef.current;
+      const currentLimit = currentFilters.limit ?? limitRef.current;
+
+      return loadExecutions({ ...currentFilters, page: currentPage, limit: currentLimit }).catch(() => undefined);
+    };
 
     refresh();
+
+    if (!shouldAutoRefresh) return;
 
     const onFocus = () => refresh();
     const onVisibilityChange = () => {
@@ -47,7 +123,18 @@ export const ExecutionsPage = () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [filters, limit, loadExecutions, page]);
+  }, [loadExecutions, queryKey]);
+
+  const applyDateRange = (nextPreset: 'all' | '7d' | '30d' | 'custom', nextFrom?: string, nextTo?: string) => {
+    const nextFilters: any = {
+      ...filters,
+      from: nextPreset === 'all' ? undefined : nextFrom || undefined,
+      to: nextPreset === 'all' ? undefined : nextTo || undefined,
+      page: 1,
+    };
+    setFilters(nextFilters);
+    loadExecutions(nextFilters);
+  };
 
   return (
     <div className="space-y-6">
@@ -59,14 +146,9 @@ export const ExecutionsPage = () => {
       </div>
 
       <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-            Execution History
-          </CardTitle>
-        </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Job</div>
                 <Select
@@ -129,9 +211,71 @@ export const ExecutionsPage = () => {
                   <option value="manual">Manual</option>
                 </Select>
               </div>
+
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Date range</div>
+                <Select
+                  value={rangePreset}
+                  onChange={(e) => {
+                    const preset = e.target.value as any;
+                    setRangePreset(preset);
+
+                    if (preset === 'all') {
+                      setFromDate('');
+                      setToDate('');
+                      applyDateRange('all');
+                      return;
+                    }
+
+                    if (preset === '7d' || preset === '30d') {
+                      const now = new Date();
+                      const days = preset === '30d' ? 30 : 7;
+                      const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+                      const to = now.toISOString().slice(0, 10);
+                      setFromDate(from);
+                      setToDate(to);
+                      applyDateRange(preset, from, to);
+                      return;
+                    }
+
+                    // Custom: keep current values, but apply if already set.
+                    applyDateRange('custom', fromDate || undefined, toDate || undefined);
+                  }}
+                >
+                  <option value="all">All time</option>
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="custom">Custom</option>
+                </Select>
+
+                {rangePreset === 'custom' && (
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFromDate(v);
+                        applyDateRange('custom', v || undefined, toDate || undefined);
+                      }}
+                      aria-label="From date"
+                    />
+                    <Input
+                      type="date"
+                      value={toDate}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setToDate(v);
+                        applyDateRange('custom', fromDate || undefined, v || undefined);
+                      }}
+                      aria-label="To date"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
-            {isLoading && executions.length === 0 && (
+            {isLoading && executions.length === 0 && !hasLoadedOnce && (
               <div className="flex items-center justify-center h-40 text-muted-foreground">
                 Loading executions...
               </div>

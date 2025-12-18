@@ -18,6 +18,7 @@ export interface CreateJobRequest {
   github_owner?: string;
   github_repo?: string;
   github_workflow_name?: string;
+  category?: string;
   metadata?: Record<string, any>;
   enable_email_notifications?: boolean;
   notification_emails?: string[];
@@ -32,6 +33,7 @@ export interface JobFilters extends PaginationParams {
   search?: string;
   is_active?: boolean;
   github_repo?: 'api' | 'mobile' | 'web';
+  category?: string;
 }
 
 export type ExecuteJobOverrides = {
@@ -92,6 +94,10 @@ export const jobService = {
     
     if (params?.github_repo) {
       filteredJobs = filteredJobs.filter((job: Job) => getRepoType(job.github_repo) === params.github_repo);
+    }
+
+    if (params?.category) {
+      filteredJobs = filteredJobs.filter((job: Job) => (job as any).category === params.category);
     }
     
     // Apply client-side pagination

@@ -17,6 +17,7 @@ export interface Job {
   github_owner?: string;
   github_repo?: string;
   github_workflow_name?: string;
+  category?: string;
   is_active: boolean;
   created_by?: string;
   created_at: string;
