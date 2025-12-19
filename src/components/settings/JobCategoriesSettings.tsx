@@ -112,8 +112,14 @@ export const JobCategoriesSettings = () => {
               }}
             />
           </div>
-          <Button onClick={() => createCategory()} disabled={creating || !newName.trim()}>
-            {creating ? 'Creating…' : 'Add Category'}
+          <Button
+            onClick={() => createCategory()}
+            loading={creating}
+            loadingText="Creating…"
+            loadingMinMs={400}
+            disabled={creating || !newName.trim()}
+          >
+            Add Category
           </Button>
         </div>
 

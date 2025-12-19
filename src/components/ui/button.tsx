@@ -1,14 +1,54 @@
 import * as React from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/services/utils/helpers';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   asChild?: boolean;
+  loading?: boolean;
+  loadingText?: string;
+  /**
+   * Keeps the loading state visible for at least this many ms to avoid flicker for fast requests.
+   */
+  loadingMinMs?: number;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'default', size = 'default', ...props }, ref) => {
+  (
+    { className, variant = 'default', size = 'default', loading, loadingText, loadingMinMs = 0, disabled, children, ...props },
+    ref
+  ) => {
+    const [showLoading, setShowLoading] = React.useState(false);
+    const startedAtRef = React.useRef<number | null>(null);
+
+    React.useEffect(() => {
+      const minMs = Math.max(0, Number(loadingMinMs) || 0);
+      if (loading) {
+        startedAtRef.current = Date.now();
+        setShowLoading(true);
+        return;
+      }
+
+      if (!showLoading) return;
+      const startedAt = startedAtRef.current || Date.now();
+      const elapsed = Date.now() - startedAt;
+      const remaining = minMs - elapsed;
+      if (remaining <= 0) {
+        setShowLoading(false);
+        startedAtRef.current = null;
+        return;
+      }
+
+      const t = window.setTimeout(() => {
+        setShowLoading(false);
+        startedAtRef.current = null;
+      }, remaining);
+      return () => window.clearTimeout(t);
+    }, [loading, loadingMinMs, showLoading]);
+
+    const isLoading = Boolean(showLoading);
+    const content = isLoading && loadingText ? loadingText : children;
     return (
       <button
         className={cn(
@@ -32,8 +72,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className
         )}
         ref={ref}
+        disabled={disabled || isLoading}
+        aria-busy={isLoading || undefined}
         {...props}
-      />
+      >
+        {isLoading && (
+          <Loader2
+            className={cn('animate-spin', size === 'icon' ? 'h-4 w-4' : 'mr-2 h-4 w-4')}
+            aria-hidden="true"
+          />
+        )}
+        {content}
+      </button>
     );
   }
 );

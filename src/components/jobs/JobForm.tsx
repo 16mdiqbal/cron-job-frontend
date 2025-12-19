@@ -682,15 +682,14 @@ export const JobForm = () => {
 
             {/* Form Actions */}
             <div className="flex gap-4">
-              <Button type="submit" disabled={isLoading || saving}>
-                {isLoading || saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isEditMode ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>{isEditMode ? 'Update Job' : 'Create Job'}</>
-                )}
+              <Button
+                type="submit"
+                loading={isLoading || saving}
+                loadingText={isEditMode ? 'Updating…' : 'Creating…'}
+                loadingMinMs={400}
+                disabled={isLoading || saving}
+              >
+                {isEditMode ? 'Update Job' : 'Create Job'}
               </Button>
               <Button
                 type="button"

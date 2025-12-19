@@ -97,29 +97,32 @@ export const NotificationSettings = () => {
 
   return (
     <div className="space-y-6">
-      {/* Success Message */}
-      {success && (
-        <div className="p-3 rounded-md bg-green-50 border border-green-200 flex items-center justify-between">
-          <p className="text-sm text-green-600">{success}</p>
-          <button
-            onClick={() => setSuccess(null)}
-            className="text-green-600 hover:text-green-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="p-3 rounded-md bg-red-50 border border-red-200 flex items-center justify-between">
-          <p className="text-sm text-red-600">{error}</p>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-600 hover:text-red-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
+      {(success || error) && (
+        <div className="fixed top-4 right-4 z-50 w-[min(520px,calc(100vw-2rem))] space-y-2">
+          {success && (
+            <div className="p-3 rounded-md bg-green-50 border border-green-200 flex items-start justify-between gap-3 shadow-sm">
+              <p className="text-sm text-green-700">{success}</p>
+              <button
+                onClick={() => setSuccess(null)}
+                className="text-green-700 hover:text-green-800 shrink-0"
+                aria-label="Dismiss success message"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {error && (
+            <div className="p-3 rounded-md bg-red-50 border border-red-200 flex items-start justify-between gap-3 shadow-sm">
+              <p className="text-sm text-red-700">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-700 hover:text-red-800 shrink-0"
+                aria-label="Dismiss error message"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -267,8 +270,14 @@ export const NotificationSettings = () => {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={isLoading}>
-          {isLoading ? 'Saving...' : 'Save Preferences'}
+        <Button
+          onClick={handleSave}
+          loading={isLoading}
+          loadingText="Saving…"
+          loadingMinMs={400}
+          disabled={isLoading}
+        >
+          Save Preferences
         </Button>
       </div>
     </div>
