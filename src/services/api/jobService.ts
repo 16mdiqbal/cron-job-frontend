@@ -20,6 +20,8 @@ export interface CreateJobRequest {
   github_repo?: string;
   github_workflow_name?: string;
   category?: string;
+  end_date: string; // YYYY-MM-DD
+  pic_team: string; // PicTeam.slug
   metadata?: Record<string, any>;
   enable_email_notifications?: boolean;
   notification_emails?: string[];
@@ -35,7 +37,8 @@ export interface JobFilters extends PaginationParams {
   is_active?: boolean;
   github_repo?: 'api' | 'mobile' | 'web';
   category?: string;
-  sort_by?: 'name' | 'repo' | 'status';
+  pic_team?: string;
+  sort_by?: 'name' | 'repo' | 'status' | 'end_date';
   sort_dir?: 'asc' | 'desc';
 }
 
@@ -115,6 +118,10 @@ export const jobService = {
       filteredJobs = filteredJobs.filter((job: Job) => (job as any).category === params.category);
     }
 
+    if (params?.pic_team) {
+      filteredJobs = filteredJobs.filter((job: Job) => (job as any).pic_team === params.pic_team);
+    }
+
     // Apply client-side sorting (before pagination)
     if (sortBy) {
       const dir = sortDir === 'desc' ? -1 : 1;
@@ -135,13 +142,32 @@ export const jobService = {
           return ar.localeCompare(br) * dir;
         }
 
-        // status: prefer Active first on asc, Inactive first on desc
-        const aActive = Boolean((a as any).is_active);
-        const bActive = Boolean((b as any).is_active);
-        if (aActive === bActive) return 0;
-        const aVal = aActive ? 0 : 1;
-        const bVal = bActive ? 0 : 1;
-        return (aVal - bVal) * dir;
+        if (sortBy === 'end_date') {
+          const parseEnd = (job: Job) => {
+            const raw = (job as any).end_date as string | null | undefined;
+            if (!raw) return null;
+            const ms = new Date(`${raw}T00:00:00+09:00`).getTime();
+            return Number.isNaN(ms) ? null : ms;
+          };
+          const aMs = parseEnd(a);
+          const bMs = parseEnd(b);
+          if (aMs === null && bMs === null) return 0;
+          if (aMs === null) return 1 * dir; // missing last on asc
+          if (bMs === null) return -1 * dir;
+          return (aMs - bMs) * dir;
+        }
+
+        if (sortBy === 'status') {
+          // status: prefer Active first on asc, Inactive first on desc
+          const aActive = Boolean((a as any).is_active);
+          const bActive = Boolean((b as any).is_active);
+          if (aActive === bActive) return 0;
+          const aVal = aActive ? 0 : 1;
+          const bVal = bActive ? 0 : 1;
+          return (aVal - bVal) * dir;
+        }
+
+        return 0;
       });
     } else {
       // Default ordering: active with nearest next execution first, inactive last.

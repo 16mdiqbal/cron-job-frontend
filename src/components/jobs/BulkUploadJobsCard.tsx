@@ -86,7 +86,7 @@ export function BulkUploadJobsCard({ onClose }: Props) {
             </CardTitle>
             <CardDescription>
               CSV is normalized on the client by removing empty rows and dropping columns without a
-              header.
+              header. Required columns: <code>name</code>, <code>cron_expression</code>, <code>end_date</code> (YYYY-MM-DD), <code>pic_team</code>.
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose} title="Close">

@@ -5,10 +5,11 @@ import { NotificationSettings } from '@/components/settings/NotificationSettings
 import { EmailSettings } from '@/components/settings/EmailSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { JobCategoriesSettings } from '@/components/settings/JobCategoriesSettings';
+import { PicTeamsSettings } from '@/components/settings/PicTeamsSettings';
 import { useAuthStore } from '@/stores/authStore';
-import { User, Bell, Mail, Lock, Tags } from 'lucide-react';
+import { User, Bell, Mail, Lock, Tags, Users } from 'lucide-react';
 
-type SettingsTab = 'profile' | 'notifications' | 'email' | 'security' | 'categories';
+type SettingsTab = 'profile' | 'notifications' | 'email' | 'security' | 'categories' | 'pic-teams';
 
 export const SettingsPage = () => {
   const { user } = useAuthStore();
@@ -17,7 +18,14 @@ export const SettingsPage = () => {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === 'notifications' || tab === 'profile' || tab === 'email' || tab === 'security' || tab === 'categories') {
+    if (
+      tab === 'notifications' ||
+      tab === 'profile' ||
+      tab === 'email' ||
+      tab === 'security' ||
+      tab === 'categories' ||
+      tab === 'pic-teams'
+    ) {
       setActiveTab(tab as SettingsTab);
     }
   }, [searchParams]);
@@ -28,7 +36,10 @@ export const SettingsPage = () => {
     { id: 'email' as SettingsTab, label: 'Email', icon: Mail },
     { id: 'security' as SettingsTab, label: 'Security', icon: Lock },
     ...(user?.role === 'admin'
-      ? [{ id: 'categories' as SettingsTab, label: 'Job Categories', icon: Tags }]
+      ? [
+          { id: 'categories' as SettingsTab, label: 'Job Categories', icon: Tags },
+          { id: 'pic-teams' as SettingsTab, label: 'PIC Teams', icon: Users },
+        ]
       : []),
   ];
 
@@ -70,6 +81,7 @@ export const SettingsPage = () => {
         {activeTab === 'email' && <EmailSettings />}
         {activeTab === 'security' && <SecuritySettings />}
         {activeTab === 'categories' && user?.role === 'admin' && <JobCategoriesSettings />}
+        {activeTab === 'pic-teams' && user?.role === 'admin' && <PicTeamsSettings />}
       </div>
     </div>
   );

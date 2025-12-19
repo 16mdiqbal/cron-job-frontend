@@ -6,17 +6,20 @@ import { Search, X } from 'lucide-react';
 
 interface JobFiltersProps {
   initialStatus?: 'all' | 'active' | 'inactive';
+  picTeams?: Array<{ slug: string; name: string; is_active: boolean }>;
   onFilterChange: (filters: {
     search?: string;
     is_active?: boolean;
     github_repo?: 'api' | 'mobile' | 'web';
+    pic_team?: string;
   }) => void;
 }
 
-export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) => {
+export const JobFilters = ({ onFilterChange, initialStatus, picTeams }: JobFiltersProps) => {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>(initialStatus || 'all');
   const [repository, setRepository] = useState<string>('all');
+  const [picTeam, setPicTeam] = useState<string>('all');
   const didMountRef = useRef(false);
 
   useEffect(() => {
@@ -24,16 +27,24 @@ export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) =
     setStatus(initialStatus);
   }, [initialStatus]);
 
-  const buildAndApplyFilters = (currentSearch?: string, currentStatus?: string, currentRepo?: string) => {
-    const filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web' } = {};
+  const buildAndApplyFilters = (
+    currentSearch?: string,
+    currentStatus?: string,
+    currentRepo?: string,
+    currentPicTeam?: string
+  ) => {
+    const filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web'; pic_team?: string } =
+      {};
 
     const searchVal = currentSearch !== undefined ? currentSearch : search;
     const statusVal = currentStatus !== undefined ? currentStatus : status;
     const repoVal = currentRepo !== undefined ? currentRepo : repository;
+    const picTeamVal = currentPicTeam !== undefined ? currentPicTeam : picTeam;
 
     if (searchVal) filters.search = searchVal;
     if (statusVal !== 'all') filters.is_active = statusVal === 'active';
     if (repoVal !== 'all') filters.github_repo = repoVal as 'api' | 'mobile' | 'web';
+    if (picTeamVal !== 'all') filters.pic_team = picTeamVal;
 
     onFilterChange(filters);
   };
@@ -50,7 +61,7 @@ export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) =
     }
 
     const timeoutId = window.setTimeout(() => {
-      buildAndApplyFilters(search, undefined, undefined);
+      buildAndApplyFilters(search, undefined, undefined, undefined);
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
@@ -58,25 +69,31 @@ export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) =
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);
-    buildAndApplyFilters(undefined, newStatus, undefined);
+    buildAndApplyFilters(undefined, newStatus, undefined, undefined);
   };
 
   const handleRepositoryChange = (newRepo: string) => {
     setRepository(newRepo);
-    buildAndApplyFilters(undefined, undefined, newRepo);
+    buildAndApplyFilters(undefined, undefined, newRepo, undefined);
+  };
+
+  const handlePicTeamChange = (newValue: string) => {
+    setPicTeam(newValue);
+    buildAndApplyFilters(undefined, undefined, undefined, newValue);
   };
 
   const handleClearFilters = () => {
     setSearch('');
     setStatus('all');
     setRepository('all');
+    setPicTeam('all');
     // Explicitly reload all jobs without any filters
     onFilterChange({});
   };
 
   return (
     <div className="rounded-2xl border border-indigo-100 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 backdrop-blur-sm shadow-sm p-4 space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="space-y-1">
           <div className="text-xs font-medium text-muted-foreground">Job name</div>
           <div className="relative">
@@ -115,6 +132,25 @@ export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) =
             <option value="api">API</option>
             <option value="mobile">Mobile</option>
             <option value="web">Web</option>
+          </Select>
+        </div>
+
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground">PIC team</div>
+          <Select
+            value={picTeam}
+            onChange={(e) => handlePicTeamChange(e.target.value)}
+            className="bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
+            disabled={!picTeams || picTeams.filter((t) => t.is_active).length === 0}
+          >
+            <option value="all">All</option>
+            {(picTeams || [])
+              .filter((t) => t.is_active)
+              .map((t) => (
+                <option key={t.slug} value={t.slug}>
+                  {t.name}
+                </option>
+              ))}
           </Select>
         </div>
       </div>

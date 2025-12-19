@@ -4,6 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  // Avoid writing to node_modules during tests (some environments mount it read-only).
+  cacheDir: './.vite',
   test: {
     globals: true,
     environment: 'jsdom',
