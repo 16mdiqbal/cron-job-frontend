@@ -6,10 +6,18 @@ import { EmailSettings } from '@/components/settings/EmailSettings';
 import { SecuritySettings } from '@/components/settings/SecuritySettings';
 import { JobCategoriesSettings } from '@/components/settings/JobCategoriesSettings';
 import { PicTeamsSettings } from '@/components/settings/PicTeamsSettings';
+import { SlackSettings } from '@/components/settings/SlackSettings';
 import { useAuthStore } from '@/stores/authStore';
-import { User, Bell, Mail, Lock, Tags, Users } from 'lucide-react';
+import { User, Bell, Mail, Lock, Tags, Users, MessageSquare } from 'lucide-react';
 
-type SettingsTab = 'profile' | 'notifications' | 'email' | 'security' | 'categories' | 'pic-teams';
+type SettingsTab =
+  | 'profile'
+  | 'notifications'
+  | 'email'
+  | 'security'
+  | 'categories'
+  | 'pic-teams'
+  | 'slack';
 
 export const SettingsPage = () => {
   const { user } = useAuthStore();
@@ -24,7 +32,8 @@ export const SettingsPage = () => {
       tab === 'email' ||
       tab === 'security' ||
       tab === 'categories' ||
-      tab === 'pic-teams'
+      tab === 'pic-teams' ||
+      tab === 'slack'
     ) {
       setActiveTab(tab as SettingsTab);
     }
@@ -39,6 +48,7 @@ export const SettingsPage = () => {
       ? [
           { id: 'categories' as SettingsTab, label: 'Job Categories', icon: Tags },
           { id: 'pic-teams' as SettingsTab, label: 'PIC Teams', icon: Users },
+          { id: 'slack' as SettingsTab, label: 'Slack', icon: MessageSquare },
         ]
       : []),
   ];
@@ -82,6 +92,7 @@ export const SettingsPage = () => {
         {activeTab === 'security' && <SecuritySettings />}
         {activeTab === 'categories' && user?.role === 'admin' && <JobCategoriesSettings />}
         {activeTab === 'pic-teams' && user?.role === 'admin' && <PicTeamsSettings />}
+        {activeTab === 'slack' && user?.role === 'admin' && <SlackSettings />}
       </div>
     </div>
   );

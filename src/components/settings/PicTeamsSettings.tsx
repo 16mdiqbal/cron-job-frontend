@@ -10,6 +10,7 @@ export const PicTeamsSettings = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newSlackHandle, setNewSlackHandle] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const activeCount = useMemo(() => teams.filter((t) => t.is_active).length, [teams]);
@@ -33,13 +34,19 @@ export const PicTeamsSettings = () => {
 
   const createTeam = async () => {
     const name = newName.trim();
+    const slack_handle = newSlackHandle.trim();
     if (!name) return;
+    if (!slack_handle) {
+      setError('Slack handle is required (e.g. @qa-team or <!subteam^S123ABC>).');
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
-      const created = await picTeamService.create({ name });
+      const created = await picTeamService.create({ name, slack_handle });
       setTeams((prev) => [created, ...prev]);
       setNewName('');
+      setNewSlackHandle('');
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to create PIC team');
     } finally {
@@ -58,18 +65,30 @@ export const PicTeamsSettings = () => {
     }
   };
 
-  const save = async (team: PicTeam, name: string) => {
-    const nextName = name.trim();
+  const save = async (
+    team: PicTeam,
+    payload: { name?: string; slack_handle?: string }
+  ) => {
+    const nextName = (payload.name ?? team.name).trim();
+    const nextSlack = (payload.slack_handle ?? team.slack_handle ?? '').trim();
     if (!nextName) return;
-    if (nextName === team.name) return;
+    if (!nextSlack) {
+      setError('Slack handle is required (e.g. @qa-team or <!subteam^S123ABC>).');
+      return;
+    }
     setError(null);
     try {
-      const ok = window.confirm(
-        `Rename PIC team to "${nextName}"?\n\nThis will automatically update its slug and migrate existing jobs.`
-      );
-      if (!ok) return;
+      if (nextName !== team.name) {
+        const ok = window.confirm(
+          `Rename PIC team to "${nextName}"?\n\nThis will automatically update its slug and migrate existing jobs.`
+        );
+        if (!ok) return;
+      }
 
-      const result = await picTeamService.update(team.id, { name: nextName });
+      const result = await picTeamService.update(team.id, {
+        name: nextName !== team.name ? nextName : undefined,
+        slack_handle: nextSlack !== (team.slack_handle || '') ? nextSlack : undefined,
+      });
       const updated = result.pic_team;
       setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       if (typeof result.jobs_updated === 'number') alert(`Migrated ${result.jobs_updated} job(s).`);
@@ -97,7 +116,7 @@ export const PicTeamsSettings = () => {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div className="md:col-span-2">
             <div className="text-xs text-muted-foreground mb-1">New team name</div>
             <Input
@@ -112,17 +131,41 @@ export const PicTeamsSettings = () => {
               }}
             />
           </div>
-          <Button onClick={() => createTeam()} disabled={creating || !newName.trim()}>
-            {creating ? 'Creating…' : 'Add Team'}
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Slack handle *</div>
+            <Input
+              value={newSlackHandle}
+              onChange={(e) => setNewSlackHandle(e.target.value)}
+              placeholder="e.g. @qa-team or <!subteam^S123ABC>"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  createTeam().catch(() => undefined);
+                }
+              }}
+            />
+          </div>
+          <Button
+            onClick={() => createTeam()}
+            loading={creating}
+            loadingText="Creating…"
+            loadingMinMs={400}
+            disabled={creating || !newName.trim()}
+          >
+            Add Team
           </Button>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Tip: Use a Slack user group mention like <code>{'<!subteam^S123ABC>'}</code> for reliable tagging.
         </div>
 
         {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
           <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-muted-foreground bg-muted/30">
-            <div className="col-span-5">Name</div>
-            <div className="col-span-4">Slug</div>
+            <div className="col-span-3">Name</div>
+            <div className="col-span-3">Slug</div>
+            <div className="col-span-3">Slack handle</div>
             <div className="col-span-1">State</div>
             <div className="col-span-2 text-right">Actions</div>
           </div>
@@ -147,9 +190,10 @@ const TeamRow = ({
 }: {
   team: PicTeam;
   onToggle: (team: PicTeam) => Promise<void> | void;
-  onSave: (team: PicTeam, name: string) => Promise<void> | void;
+  onSave: (team: PicTeam, payload: { name?: string; slack_handle?: string }) => Promise<void> | void;
 }) => {
   const [name, setName] = useState(team.name);
+  const [slackHandle, setSlackHandle] = useState(team.slack_handle || '');
   const toSlug = (value: string) =>
     value
       .trim()
@@ -160,20 +204,42 @@ const TeamRow = ({
   const slugPreview = toSlug(name);
 
   useEffect(() => setName(team.name), [team.name]);
+  useEffect(() => setSlackHandle(team.slack_handle || ''), [team.slack_handle]);
 
   return (
     <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center">
-      <div className="col-span-5">
+      <div className="col-span-3">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </div>
-      <div className="col-span-4">
+      <div className="col-span-3">
         <Input value={slugPreview} disabled />
+      </div>
+      <div className="col-span-3">
+        <Input
+          value={slackHandle}
+          onChange={(e) => setSlackHandle(e.target.value)}
+          placeholder="@qa-team or <!subteam^...>"
+        />
       </div>
       <div className="col-span-1">
         <Badge variant={team.is_active ? 'success' : 'secondary'}>{team.is_active ? 'active' : 'off'}</Badge>
       </div>
       <div className="col-span-2 flex justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={() => onSave(team, name)} disabled={!name.trim() || name.trim() === team.name}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            const nextName = name.trim();
+            const nextSlack = slackHandle.trim();
+            if (!nextName || !nextSlack) return;
+            await onSave(team, { name: nextName, slack_handle: nextSlack });
+          }}
+          disabled={
+            !name.trim() ||
+            !slackHandle.trim() ||
+            (name.trim() === team.name && slackHandle.trim() === (team.slack_handle || ''))
+          }
+        >
           Save
         </Button>
         <Button variant="outline" size="sm" onClick={() => onToggle(team)}>
@@ -185,4 +251,3 @@ const TeamRow = ({
 };
 
 export default PicTeamsSettings;
-

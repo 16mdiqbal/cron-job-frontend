@@ -62,6 +62,7 @@ npm run type-check
   - **Notification Preferences** (configuration lives here)
   - **Job Categories** (admin-managed list used in Jobs)
   - **PIC Teams** (admin-managed list used in Jobs)
+  - **Slack** (admin: webhook URL + optional channel)
 - Dashboard
   - Live totals and execution statistics (auto-refresh) + date range filter for stats
   - “Needs attention” shortcuts (failed last 24h, no next run, ending soon, disabled jobs)
