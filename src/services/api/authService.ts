@@ -11,6 +11,7 @@ export interface LoginRequest {
 // Login response
 export interface LoginResponse {
   token: string;
+  refreshToken?: string;
   user: User;
 }
 
@@ -26,9 +27,10 @@ export const authService = {
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     const { data } = await client.post('/auth/login', credentials);
-    // Backend returns { access_token, user }, map to { token, user }
+    // Backend returns { access_token, refresh_token, user }, map to { token, refreshToken, user }
     return {
       token: data.access_token,
+      refreshToken: data.refresh_token,
       user: data.user,
     };
   },
@@ -45,6 +47,7 @@ export const authService = {
     } finally {
       // Clear local storage
       localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
     }
   },
@@ -63,8 +66,14 @@ export const authService = {
    * @returns New token
    */
   async refreshToken(): Promise<string> {
-    const { data } = await client.post<ApiResponse<{ token: string }>>('/auth/refresh');
-    return data.data.token;
+    const refresh = localStorage.getItem('refresh_token');
+    if (!refresh) {
+      throw new Error('Missing refresh token');
+    }
+    const { data } = await client.post('/auth/refresh', null, {
+      headers: { Authorization: `Bearer ${refresh}` },
+    });
+    return data.access_token;
   },
 };
 

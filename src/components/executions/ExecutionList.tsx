@@ -13,6 +13,7 @@ import type { JobExecution } from '@/types';
 type Props = {
   executions: JobExecution[];
   onViewDetails: (execution: JobExecution) => void;
+  onDrilldownJob?: (jobId: string) => void;
 };
 
 const statusBadgeVariant = (status: JobExecution['status']) => {
@@ -21,7 +22,7 @@ const statusBadgeVariant = (status: JobExecution['status']) => {
   return 'secondary';
 };
 
-export function ExecutionList({ executions, onViewDetails }: Props) {
+export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Props) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden bg-white dark:bg-gray-800">
       <Table>
@@ -39,7 +40,22 @@ export function ExecutionList({ executions, onViewDetails }: Props) {
         <TableBody>
           {executions.map((e) => (
             <TableRow key={e.id}>
-              <TableCell className="font-medium">{e.job_name || e.job_id}</TableCell>
+              <TableCell className="font-medium">
+                {e.job_name || e.job_id ? (
+                  <button
+                    type="button"
+                    className="text-left hover:underline underline-offset-4"
+                    onClick={() => {
+                      if (e.job_id) onDrilldownJob(e.job_id);
+                    }}
+                    title="Show executions for this job"
+                  >
+                    {e.job_name || e.job_id}
+                  </button>
+                ) : (
+                  '-'
+                )}
+              </TableCell>
               <TableCell>
                 <Badge variant={statusBadgeVariant(e.status)}>{e.status}</Badge>
               </TableCell>

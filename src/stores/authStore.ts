@@ -6,6 +6,7 @@ import { authService, type LoginRequest } from '@/services/api/authService';
 interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -13,8 +14,10 @@ interface AuthState {
   // Actions
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   setUser: (user: User) => void;
   setToken: (token: string) => void;
+  setRefreshToken: (token: string | null) => void;
   clearAuth: () => void;
   initializeAuth: () => Promise<void>;
   setError: (error: string | null) => void;
@@ -29,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -39,15 +43,17 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials: LoginRequest) => {
         set({ isLoading: true, error: null });
         try {
-          const { token, user } = await authService.login(credentials);
+          const { token, refreshToken, user } = await authService.login(credentials);
 
           // Save to localStorage
           localStorage.setItem('token', token);
+          if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
           localStorage.setItem('user', JSON.stringify(user));
 
           set({
             user,
             token,
+            refreshToken: refreshToken || null,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -83,6 +89,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: null,
             token: null,
+            refreshToken: null,
             isAuthenticated: false,
             isLoading: false,
             error: null,
@@ -90,9 +97,22 @@ export const useAuthStore = create<AuthState>()(
 
           // Clear all storage
           localStorage.removeItem('token');
+          localStorage.removeItem('refresh_token');
           localStorage.removeItem('user');
           localStorage.removeItem('auth-storage'); // Clear Zustand persist cache
           sessionStorage.clear(); // Clear session storage
+        }
+      },
+
+      refreshSession: async () => {
+        try {
+          const newToken = await authService.refreshToken();
+          localStorage.setItem('token', newToken);
+          set({ token: newToken, isAuthenticated: true });
+        } catch (e) {
+          console.error('Failed to refresh session:', e);
+          get().clearAuth();
+          throw e;
         }
       },
 
@@ -112,17 +132,25 @@ export const useAuthStore = create<AuthState>()(
         set({ token, isAuthenticated: true });
       },
 
+      setRefreshToken: (token: string | null) => {
+        if (token) localStorage.setItem('refresh_token', token);
+        else localStorage.removeItem('refresh_token');
+        set({ refreshToken: token });
+      },
+
       /**
        * Clear authentication state
        */
       clearAuth: () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         localStorage.removeItem('auth-storage'); // Clear Zustand persist cache
         sessionStorage.clear(); // Clear session storage
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
           error: null,
         });
@@ -133,6 +161,7 @@ export const useAuthStore = create<AuthState>()(
        */
       initializeAuth: async () => {
         const token = localStorage.getItem('token');
+        const refreshToken = localStorage.getItem('refresh_token');
         const userStr = localStorage.getItem('user');
 
         if (token && userStr) {
@@ -141,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               user,
               token,
+              refreshToken: refreshToken || null,
               isAuthenticated: true,
             });
 
@@ -166,6 +196,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

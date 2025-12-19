@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, CheckCircle, XCircle, Activity } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Activity, AlertCircle, PauseCircle } from 'lucide-react';
 import { jobService } from '@/services/api/jobService';
 import { executionService, type ExecutionStatistics } from '@/services/api/executionService';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Link } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
   const [jobCounts, setJobCounts] = useState({ total: 0, active: 0, inactive: 0 });
   const [executionStats, setExecutionStats] = useState<ExecutionStatistics | null>(null);
+  const [failedLast24h, setFailedLast24h] = useState(0);
+  const [jobsNoNextRun, setJobsNoNextRun] = useState(0);
   const [rangePreset, setRangePreset] = useState<'7d' | '30d' | 'custom'>(() => '7d');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
@@ -35,6 +39,8 @@ export const DashboardPage = () => {
 
     const refresh = async () => {
       try {
+        const now = new Date();
+        const last24hFromIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const statsParams = buildStatsParams();
         const [allJobs, stats] = await Promise.all([
           jobService.getAllJobs(),
@@ -47,6 +53,19 @@ export const DashboardPage = () => {
         const total = allJobs.length;
         setJobCounts({ total, active, inactive: total - active });
         setExecutionStats(stats);
+
+        setJobsNoNextRun(allJobs.filter((j) => j.is_active && !j.next_execution_at).length);
+
+        try {
+          const last24hStats = await executionService.getStatistics({
+            from: last24hFromIso,
+            to: now.toISOString(),
+          });
+          if (!cancelled) setFailedLast24h(last24hStats.failed_executions ?? 0);
+        } catch (e) {
+          console.error('Failed to load last-24h stats:', e);
+          if (!cancelled) setFailedLast24h(0);
+        }
       } catch (err) {
         console.error('Failed to refresh dashboard stats:', err);
       }
@@ -191,13 +210,94 @@ export const DashboardPage = () => {
         })}
       </div>
 
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+        <CardHeader>
+          <CardTitle className="text-xl font-semibold text-gray-900 dark:text-gray-100">Needs attention</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400">
+            Quick shortcuts to issues that typically require action.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Link
+              to={`/executions?status=failed&from=${encodeURIComponent(
+                new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+              )}`}
+              className="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Failed executions in the last 24 hours"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Failed (last 24h)</div>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">See recent failed runs</div>
+                </div>
+                <Badge variant={failedLast24h > 0 ? 'destructive' : 'secondary'}>{failedLast24h}</Badge>
+              </div>
+              <div className="mt-3 text-sm text-indigo-700 dark:text-indigo-300 group-hover:underline underline-offset-4">
+                View
+              </div>
+            </Link>
+
+            <Link
+              to="/jobs?status=active&needs=no-next-run"
+              className="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Jobs with no next run scheduled"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    <div className="font-medium text-gray-900 dark:text-gray-100">No next run</div>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">Active jobs missing schedule</div>
+                </div>
+                <Badge variant={jobsNoNextRun > 0 ? 'warning' : 'secondary'}>{jobsNoNextRun}</Badge>
+              </div>
+              <div className="mt-3 text-sm text-indigo-700 dark:text-indigo-300 group-hover:underline underline-offset-4">
+                View
+              </div>
+            </Link>
+
+            <Link
+              to="/jobs?status=inactive"
+              className="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Disabled jobs"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <PauseCircle className="h-5 w-5 text-slate-600" />
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Disabled jobs</div>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">Jobs currently paused</div>
+                </div>
+                <Badge variant="secondary">{jobCounts.inactive}</Badge>
+              </div>
+              <div className="mt-3 text-sm text-indigo-700 dark:text-indigo-300 group-hover:underline underline-offset-4">
+                View
+              </div>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Welcome Card */}
       <Card className="border-0 shadow-lg bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-gray-800 dark:via-gray-850 dark:to-gray-900 overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 rounded-full blur-3xl -z-10"></div>
         <CardHeader className="relative">
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Getting Started</CardTitle>
           <CardDescription className="text-gray-600 dark:text-gray-400 text-base">
-            Welcome to Cron Job Manager. Start by creating your first scheduled job.
+            Welcome to Cron Job Manager. Start by{' '}
+            <Link
+              to="/jobs/new"
+              className="font-medium text-indigo-700 dark:text-indigo-300 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+            >
+              creating your first scheduled job
+            </Link>
+            .
           </CardDescription>
         </CardHeader>
         <CardContent className="relative">
@@ -205,23 +305,41 @@ export const DashboardPage = () => {
             This dashboard displays live statistics about your scheduled jobs. Use the navigation menu to:
           </p>
           <ul className="space-y-3">
-            <li className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg mr-3">
-                <Clock className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Create and manage cron jobs</span>
+            <li>
+              <Link
+                to="/jobs"
+                className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label="Go to Jobs to create and manage cron jobs"
+              >
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg mr-3">
+                  <Clock className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Create and manage cron jobs</span>
+              </Link>
             </li>
-            <li className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg mr-3">
-                <Activity className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Monitor execution history</span>
+            <li>
+              <Link
+                to="/executions"
+                className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label="Go to Executions to monitor execution history"
+              >
+                <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg mr-3">
+                  <Activity className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Monitor execution history</span>
+              </Link>
             </li>
-            <li className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-3">
-                <CheckCircle className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Configure notifications</span>
+            <li>
+              <Link
+                to="/notifications"
+                className="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label="Notification inbox"
+              >
+                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-3">
+                  <CheckCircle className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Notification inbox</span>
+              </Link>
             </li>
           </ul>
         </CardContent>

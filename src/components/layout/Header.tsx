@@ -1,26 +1,93 @@
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
 import { Menu, Clock, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { applyTheme, getInitialTheme, setStoredTheme, toggleTheme, type ThemeMode } from '@/services/utils/theme';
+import { QuickActionsMenu } from '@/components/layout/QuickActionsMenu';
+import { getTokenExpiryMs } from '@/services/utils/jwt';
 
 interface HeaderProps {
   onMenuClick?: () => void;
 }
 
 export const Header = ({ onMenuClick }: HeaderProps) => {
-  const { user } = useAuthStore();
+  const { user, token, refreshToken, refreshSession } = useAuthStore();
   const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [dismissedUntilExpiry, setDismissedUntilExpiry] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const expiryMs = useMemo(() => (token ? getTokenExpiryMs(token) : null), [token]);
+  const msRemaining = expiryMs ? expiryMs - nowMs : null;
+
+  useEffect(() => {
+    setDismissedUntilExpiry(false);
+  }, [expiryMs]);
+
+  useEffect(() => {
+    // Graceful auto-refresh when close to expiry and refresh token exists.
+    if (!refreshToken) return;
+    if (!msRemaining || msRemaining <= 0) return;
+    if (msRemaining > 60_000) return;
+    if (refreshing) return;
+    setRefreshing(true);
+    refreshSession()
+      .catch(() => undefined)
+      .finally(() => setRefreshing(false));
+  }, [msRemaining, refreshToken, refreshing, refreshSession]);
+
+  const showWarning =
+    Boolean(refreshToken) &&
+    Boolean(msRemaining) &&
+    msRemaining! > 0 &&
+    msRemaining! <= 2 * 60_000 &&
+    !dismissedUntilExpiry;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refreshSession();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 shadow-sm will-change-transform">
+      {showWarning && (
+        <div className="border-b border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30">
+          <div className="flex flex-col gap-2 px-4 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-amber-900 dark:text-amber-100">
+              Session expires soon ({Math.max(0, Math.ceil(msRemaining! / 1000))}s).
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleRefresh} disabled={refreshing}>
+                {refreshing ? 'Refreshing…' : 'Stay signed in'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDismissedUntilExpiry(true)}
+                className="border-amber-300 dark:border-amber-900/60"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex h-16 items-center px-4">
         {/* Mobile menu button */}
         <Button variant="ghost" size="icon" className="mr-2 md:hidden" onClick={onMenuClick}>
@@ -40,6 +107,8 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
 
         {/* Right side */}
         <div className="flex items-center space-x-4">
+          <QuickActionsMenu />
+
           <Button
             variant="ghost"
             size="icon"

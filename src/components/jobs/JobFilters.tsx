@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Search, X } from 'lucide-react';
 
 interface JobFiltersProps {
+  initialStatus?: 'all' | 'active' | 'inactive';
   onFilterChange: (filters: {
     search?: string;
     is_active?: boolean;
@@ -12,11 +13,16 @@ interface JobFiltersProps {
   }) => void;
 }
 
-export const JobFilters = ({ onFilterChange }: JobFiltersProps) => {
+export const JobFilters = ({ onFilterChange, initialStatus }: JobFiltersProps) => {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<string>('all');
+  const [status, setStatus] = useState<string>(initialStatus || 'all');
   const [repository, setRepository] = useState<string>('all');
   const didMountRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialStatus) return;
+    setStatus(initialStatus);
+  }, [initialStatus]);
 
   const buildAndApplyFilters = (currentSearch?: string, currentStatus?: string, currentRepo?: string) => {
     const filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web' } = {};

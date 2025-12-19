@@ -1,5 +1,6 @@
 import { client } from './client';
 import type { Job, PaginatedResponse, PaginationParams } from '@/types';
+import { sortJobsByDefaultOrder } from '@/services/utils/jobSorting';
 
 const getRepoType = (githubRepo?: string): 'api' | 'mobile' | 'web' | null => {
   const repo = githubRepo?.toLowerCase();
@@ -62,6 +63,16 @@ export type BulkUploadJobsResult = {
   errors: Array<{ row?: number; job_name?: string; error: string; message?: string }>;
   jobs: Array<{ id?: string; name: string; is_active?: boolean; cron_expression?: string }>;
 };
+
+export type CronPreviewResponse = {
+  timezone: string;
+  next_runs: string[];
+  count: number;
+};
+
+export type TestRunResponse =
+  | { ok: true; type: 'webhook' | 'github'; status_code: number; message: string }
+  | { ok: false; type: 'webhook' | 'github'; status_code?: number; error?: string; message: string };
 
 /**
  * Job Service
@@ -132,6 +143,9 @@ export const jobService = {
         const bVal = bActive ? 0 : 1;
         return (aVal - bVal) * dir;
       });
+    } else {
+      // Default ordering: active with nearest next execution first, inactive last.
+      filteredJobs = sortJobsByDefaultOrder(filteredJobs);
     }
     
     // Apply client-side pagination
@@ -212,7 +226,7 @@ export const jobService = {
    */
   async validateCronExpression(
     expression: string
-  ): Promise<{ valid: boolean; description?: string; error?: string }> {
+  ): Promise<{ valid: boolean; message?: string; description?: string; error?: string }> {
     const { data } = await client.post('/jobs/validate-cron', { expression });
     return data;
   },
@@ -223,6 +237,29 @@ export const jobService = {
   async getCronDescription(expression: string): Promise<string> {
     const { data } = await client.post('/jobs/cron-description', { expression });
     return data.description || '';
+  },
+
+  /**
+   * Get next run preview for a cron expression.
+   */
+  async getCronPreview(expression: string, count = 5): Promise<CronPreviewResponse> {
+    const { data } = await client.post('/jobs/cron-preview', { expression, count });
+    return data;
+  },
+
+  /**
+   * Execute a one-off test run (no job created).
+   */
+  async testRun(payload: {
+    target_url?: string;
+    github_owner?: string;
+    github_repo?: string;
+    github_workflow_name?: string;
+    metadata?: Record<string, any>;
+    timeout_seconds?: number;
+  }): Promise<TestRunResponse> {
+    const { data } = await client.post('/jobs/test-run', payload);
+    return data;
   },
 
   /**

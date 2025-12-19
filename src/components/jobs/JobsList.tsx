@@ -74,6 +74,9 @@ const applyClientSideFilters = (
 export const JobsList = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [needsNoNextRun, setNeedsNoNextRun] = useState(false);
+  const [initialStatus, setInitialStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const {
     jobs,
     isLoading,
@@ -114,18 +117,36 @@ export const JobsList = () => {
 
   useEffect(() => {
     const fromUrl = searchParams.get('category');
+    const statusParam = (searchParams.get('status') || '').trim().toLowerCase();
+    const needsParam = (searchParams.get('needs') || '').trim().toLowerCase();
     const sortBy = searchParams.get('sort') || null;
     const sortDir = searchParams.get('dir') || null;
     const fromStorage = localStorage.getItem('jobs-category') || null;
     const selected = (fromUrl || fromStorage || 'all').trim();
 
     const category = selected === 'all' ? undefined : selected;
+    const isActive =
+      statusParam === 'active' ? true : statusParam === 'inactive' ? false : undefined;
     const nextSortBy =
       sortBy === 'name' || sortBy === 'repo' || sortBy === 'status' ? sortBy : undefined;
     const nextSortDir = sortDir === 'desc' ? 'desc' : sortDir === 'asc' ? 'asc' : undefined;
+    const nextNeedsNoNextRun = needsParam === 'no-next-run';
+    const nextLimit = nextNeedsNoNextRun ? 100 : 10;
 
-    setFilters({ category, sort_by: nextSortBy, sort_dir: nextSortDir, page: 1 });
-    loadJobs({ ...filters, category, sort_by: nextSortBy, sort_dir: nextSortDir, page: 1, limit: 10 })
+    setNeedsNoNextRun(nextNeedsNoNextRun);
+    setInitialStatus(isActive === true ? 'active' : isActive === false ? 'inactive' : 'all');
+
+    const nextFilters = {
+      category,
+      is_active: isActive,
+      sort_by: nextSortBy,
+      sort_dir: nextSortDir,
+      page: 1,
+      limit: nextLimit,
+    };
+
+    setFilters(nextFilters);
+    loadJobs(nextFilters)
       .catch((err) => console.error('Failed to load jobs:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -229,6 +250,20 @@ export const JobsList = () => {
     }
   };
 
+  const displayJobs = useMemo(() => {
+    if (!needsNoNextRun) return jobs;
+    return jobs.filter((j) => j.is_active && !j.next_execution_at);
+  }, [jobs, needsNoNextRun]);
+
+  const clearNeedsFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('needs');
+    setSearchParams(next, { replace: true });
+    setNeedsNoNextRun(false);
+    setFilters({ limit: 10, page: 1 });
+    loadJobs({ ...filters, limit: 10, page: 1 }).catch(() => undefined);
+  };
+
   const downloadBlob = (filename: string, blob: Blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -305,11 +340,35 @@ export const JobsList = () => {
     return new Date(dateString).toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
   };
 
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const formatCountdown = (dateString?: string) => {
+    if (!dateString) return '—';
+    const target = new Date(dateString).getTime();
+    if (Number.isNaN(target)) return '—';
+    const diffMs = target - nowMs;
+    if (diffMs <= 0) return 'Due';
+
+    const totalSeconds = Math.floor(diffMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+    if (hours <= 0) return `in ${minutes}m`;
+    if (hours < 24) return `in ${hours}h ${minutes}m`;
+
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `in ${days}d ${remHours}h`;
+  };
+
   const getNextExecutionTextClassName = (dateString?: string) => {
     if (!dateString) return null;
     const nextMs = new Date(dateString).getTime();
     if (Number.isNaN(nextMs)) return null;
-    const diffMs = nextMs - Date.now();
+    const diffMs = nextMs - nowMs;
     if (diffMs <= 0) return null;
 
     const oneHourMs = 60 * 60 * 1000;
@@ -323,7 +382,7 @@ export const JobsList = () => {
     return job.is_active ? (
       <Badge variant="success">Active</Badge>
     ) : (
-      <Badge variant="secondary">Inactive</Badge>
+      <Badge variant="secondary">Paused</Badge>
     );
   };
 
@@ -383,7 +442,7 @@ export const JobsList = () => {
     setPage(newPage);
   };
 
-  const pageJobIds = useMemo(() => jobs.map((j) => j.id), [jobs]);
+  const pageJobIds = useMemo(() => displayJobs.map((j) => j.id), [displayJobs]);
   const selectedOnPageCount = useMemo(
     () => pageJobIds.filter((id) => selectedIds.has(id)).length,
     [pageJobIds, selectedIds]
@@ -573,7 +632,31 @@ export const JobsList = () => {
         })}
       </div>
 
-      <JobFilters onFilterChange={handleFilterChange} />
+      <JobFilters onFilterChange={handleFilterChange} initialStatus={initialStatus} />
+
+      {needsNoNextRun && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 p-4 text-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5" />
+              <div>
+                <div className="font-medium">Showing jobs with no next run</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Loaded up to 100 jobs and filtered to active jobs missing a scheduled next run.
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearNeedsFilter}
+              className="border-amber-300 dark:border-amber-900/60 bg-white/80 dark:bg-gray-900/20 hover:bg-white dark:hover:bg-gray-800"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
 
       {showBulkUpload && <BulkUploadJobsCard onClose={() => setShowBulkUpload(false)} />}
       {runJob && (
@@ -636,18 +719,23 @@ export const JobsList = () => {
         </div>
       )}
 
-      {jobs.length > 0 && (
+      {displayJobs.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div>
-            Showing <span className="font-medium text-foreground">{jobs.length}</span> job(s) on this
-            page{typeof total === 'number' ? (
+            Showing <span className="font-medium text-foreground">{displayJobs.length}</span>{' '}
+            job(s){needsNoNextRun ? (
+              <>
+                {' '}
+                (loaded: <span className="font-medium text-foreground">{jobs.length}</span>)
+              </>
+            ) : typeof total === 'number' ? (
               <>
                 {' '}
                 (total: <span className="font-medium text-foreground">{total}</span>)
               </>
             ) : null}
           </div>
-          {totalPages > 0 && (
+          {!needsNoNextRun && totalPages > 0 && (
             <div>
               Page <span className="font-medium text-foreground">{page}</span> of{' '}
               <span className="font-medium text-foreground">{totalPages}</span>
@@ -657,7 +745,7 @@ export const JobsList = () => {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="rounded-2xl border border-indigo-100 dark:border-gray-700 bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 shadow-sm">
+        <div className="sticky top-20 z-20 rounded-2xl border border-indigo-100 dark:border-gray-700 bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -689,7 +777,7 @@ export const JobsList = () => {
                 {selectingAll ? 'Selecting…' : 'Select all matching'}
               </Button>
               <Button onClick={() => runBulkAction('enable')} disabled={bulkWorking} className="w-full sm:w-auto">
-                Enable
+                Resume
               </Button>
               <Button
                 onClick={() => runBulkAction('disable')}
@@ -697,7 +785,7 @@ export const JobsList = () => {
                 variant="outline"
                 className="border-indigo-200 dark:border-gray-700 w-full sm:w-auto"
               >
-                Disable
+                Pause
               </Button>
               <Button onClick={() => runBulkAction('delete')} disabled={bulkWorking} variant="destructive" className="w-full sm:w-auto">
                 Delete
@@ -707,7 +795,7 @@ export const JobsList = () => {
         </div>
       )}
 
-      {jobs.length === 0 ? (
+      {displayJobs.length === 0 ? (
         <div className="text-center py-16 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900 dark:to-blue-900 rounded-full flex items-center justify-center mb-4">
             <Plus className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
@@ -768,12 +856,12 @@ export const JobsList = () => {
                 <TableHead>Cron Expression</TableHead>
                 <TableHead>Target URL</TableHead>
                 <TableHead>Last Execution</TableHead>
-                <TableHead>Next Execution</TableHead>
+                <TableHead>Next Run</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {jobs.map((job) => (
+              {displayJobs.map((job) => (
                 <TableRow key={job.id}>
                   <TableCell className="w-10">
                     <input
@@ -797,9 +885,13 @@ export const JobsList = () => {
                   </TableCell>
                   <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>
                   <TableCell className="text-sm">
-                    <span className={getNextExecutionTextClassName(job.next_execution_at) || undefined}>
-                      {formatDate(job.next_execution_at)}
-                    </span>
+                    <div className="flex flex-col leading-tight">
+                      <span className={getNextExecutionTextClassName(job.next_execution_at) || undefined}>
+                        {formatCountdown(job.next_execution_at)}{' '}
+                        <span className="text-[11px] text-muted-foreground">JST</span>
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{formatDate(job.next_execution_at)}</span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -849,7 +941,7 @@ export const JobsList = () => {
         </div>
       )}
 
-      {totalPages > 1 && (
+      {!needsNoNextRun && totalPages > 1 && (
         <Pagination
           currentPage={page}
           totalPages={totalPages}

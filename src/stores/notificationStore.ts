@@ -6,6 +6,7 @@ import {
   markAsRead, 
   markAllAsRead,
   deleteNotification,
+  deleteReadNotifications,
   type NotificationRangeParams,
   type Notification 
 } from '@/services/api/notificationService';
@@ -32,6 +33,7 @@ interface NotificationStore {
   markNotificationAsRead: (notificationId: string) => Promise<void>;
   markAllNotificationsAsRead: () => Promise<void>;
   removeNotification: (notificationId: string) => Promise<void>;
+  deleteReadNotifications: () => Promise<number>;
   setRangePreset: (preset: NotificationRangePreset) => void;
   setFromDate: (from: string) => void;
   setToDate: (to: string) => void;
@@ -172,6 +174,23 @@ export const useNotificationStore = create<NotificationStore>()(
           });
         } catch (error: any) {
           set({ error: error.response?.data?.error || 'Failed to delete notification' });
+        }
+      },
+
+      deleteReadNotifications: async () => {
+        try {
+          const { rangePreset, fromDate, toDate } = get();
+          const rangeParams = buildRangeParams(rangePreset, fromDate, toDate);
+          const deletedCount = await deleteReadNotifications(rangeParams);
+
+          set((state) => ({
+            notifications: state.notifications.filter((n) => !n.is_read),
+          }));
+
+          return deletedCount;
+        } catch (error: any) {
+          set({ error: error.response?.data?.error || 'Failed to delete read notifications' });
+          return 0;
         }
       },
 

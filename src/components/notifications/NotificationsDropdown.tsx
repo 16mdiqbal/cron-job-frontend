@@ -3,6 +3,7 @@ import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Link } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -198,6 +199,16 @@ export const NotificationsDropdown = () => {
                     <p className="text-sm text-muted-foreground mt-1 break-words">
                       {notification.message}
                     </p>
+                    {notification.related_job_id && (
+                      <div className="mt-2">
+                        <Link
+                          to={`/jobs/${notification.related_job_id}/edit`}
+                          className="text-xs text-indigo-700 hover:underline underline-offset-4"
+                        >
+                          Open job
+                        </Link>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       {formatDistanceToNow(parseISO(notification.created_at), { addSuffix: true })}
                     </p>
@@ -227,6 +238,16 @@ export const NotificationsDropdown = () => {
             ))}
           </>
         )}
+
+        <DropdownMenuSeparator />
+        <div className="p-3 flex items-center justify-between text-xs">
+          <Link to="/notifications" className="text-indigo-700 hover:underline underline-offset-4">
+            Open inbox
+          </Link>
+          <Link to="/settings?tab=notifications" className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4">
+            Settings
+          </Link>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
