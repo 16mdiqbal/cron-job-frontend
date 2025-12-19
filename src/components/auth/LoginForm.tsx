@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { getAndClearPostLoginRedirect, isSafeInternalRedirect } from '@/services/utils/authRedirect';
 
 interface LoginFormData {
   emailOrUsername: string;
@@ -16,6 +17,7 @@ interface LoginFormData {
 
 export const LoginForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading } = useAuthStore();
   const [serverError, setServerError] = useState<string>('');
 
@@ -41,7 +43,14 @@ export const LoginForm = () => {
         : { username: data.emailOrUsername, password: data.password };
 
       await login(credentials);
-      navigate('/dashboard');
+      const stateFrom = (location.state as any)?.from;
+      const statePath =
+        stateFrom && typeof stateFrom.pathname === 'string'
+          ? `${stateFrom.pathname || ''}${stateFrom.search || ''}${stateFrom.hash || ''}`
+          : null;
+      const stored = getAndClearPostLoginRedirect();
+      const next = statePath || stored;
+      navigate(isSafeInternalRedirect(next || '') ? (next as string) : '/dashboard', { replace: true });
     } catch (error: unknown) {
       // Extract error message from various possible locations
       const axiosError = error as any;

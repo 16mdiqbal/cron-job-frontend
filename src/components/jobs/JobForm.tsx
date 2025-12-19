@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useJobStore } from '@/stores/jobStore';
@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CreateJobRequest } from '@/services/api/jobService';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
+import { jobService } from '@/services/api/jobService';
+import { Badge } from '@/components/ui/badge';
 
 interface MetadataField {
   key: string;
@@ -36,10 +38,22 @@ export const JobForm = () => {
   const [metadata, setMetadata] = useState<MetadataField[]>([{ key: '', value: '' }]);
   const [metadataError, setMetadataError] = useState<string>('');
   const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [cronValidation, setCronValidation] = useState<{ valid: boolean; message?: string } | null>(
+    null
+  );
+  const [cronNextRun, setCronNextRun] = useState<{ timezone: string; nextRunIso: string } | null>(null);
+  const [cronPreview, setCronPreview] = useState<{ timezone: string; nextRuns: string[] } | null>(null);
+  const [cronPreviewLoading, setCronPreviewLoading] = useState(false);
+  const [cronPreviewError, setCronPreviewError] = useState<string>('');
+  const [showCronPreview, setShowCronPreview] = useState(false);
+  const [testRun, setTestRun] = useState<{ running: boolean; message?: string; ok?: boolean }>(() => ({
+    running: false,
+  }));
 
   const {
     register,
     handleSubmit,
+    setError,
     setValue,
     watch,
     reset,
@@ -56,7 +70,22 @@ export const JobForm = () => {
     },
   });
 
+  const cronExpression = watch('cron_expression');
   const github_repo = watch('github_repo');
+  const targetUrl = watch('target_url');
+  const githubOwner = watch('github_owner');
+  const githubWorkflow = watch('github_workflow_name');
+
+  const metadataObj = useMemo(() => {
+    const out: Record<string, string> = {};
+    metadata.forEach((m) => {
+      if (m.key.trim() && m.value.trim()) out[m.key.trim()] = m.value.trim();
+    });
+    return out;
+  }, [metadata]);
+
+  const formatJst = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
 
   useEffect(() => {
     // Only load job if we're in edit mode AND have a valid id
@@ -95,6 +124,63 @@ export const JobForm = () => {
       }
     }
   }, [currentJob, reset]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const expr = (cronExpression || '').trim();
+    if (!expr) {
+      setCronValidation(null);
+      setCronNextRun(null);
+      setCronPreview(null);
+      setCronPreviewError('');
+      return;
+    }
+
+    setCronPreviewError('');
+    setCronPreviewLoading(true);
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const validation = await jobService.validateCronExpression(expr);
+        if (cancelled) return;
+        setCronValidation({ valid: Boolean(validation?.valid), message: validation?.message || validation?.error });
+
+        if (!validation?.valid) {
+          setCronNextRun(null);
+          setCronPreview(null);
+          setCronPreviewLoading(false);
+          return;
+        }
+
+        const nextRun = await jobService.getCronPreview(expr, 1);
+        if (cancelled) return;
+        const tz = nextRun.timezone || 'Asia/Tokyo';
+        const nextIso = nextRun.next_runs?.[0];
+        setCronNextRun(nextIso ? { timezone: tz, nextRunIso: nextIso } : null);
+
+        if (showCronPreview) {
+          const preview = await jobService.getCronPreview(expr, 5);
+          if (cancelled) return;
+          setCronPreview({ timezone: tz, nextRuns: preview.next_runs || [] });
+        } else {
+          setCronPreview(null);
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        setCronPreview(null);
+        setCronNextRun(null);
+        setCronValidation(null);
+        setCronPreviewError(e?.response?.data?.message || e?.message || 'Failed to preview cron.');
+      } finally {
+        if (!cancelled) setCronPreviewLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [cronExpression, showCronPreview]);
 
   const handleAddMetadata = () => {
     if (metadata.length < 10) {
@@ -146,6 +232,14 @@ export const JobForm = () => {
         return;
       }
 
+      // Validate cron expression with backend rules so the user gets the "why" message.
+      const cronCheck = await jobService.validateCronExpression((data.cron_expression || '').trim());
+      if (!cronCheck?.valid) {
+        const message = cronCheck?.message || 'Invalid cron expression.';
+        setError('cron_expression', { type: 'validate', message });
+        return;
+      }
+
       // Build metadata object from fields
       const metadataObj: Record<string, string> = {};
       metadata.forEach(m => {
@@ -193,6 +287,49 @@ export const JobForm = () => {
     }
   };
 
+  const handleTestRun = async () => {
+    setTestRun({ running: true, message: undefined, ok: undefined });
+    try {
+      if (!validateMetadata()) {
+        setTestRun({ running: false, message: 'Fix metadata validation first.', ok: false });
+        return;
+      }
+
+      const validation = await jobService.validateCronExpression((cronExpression || '').trim());
+      if (!validation?.valid) {
+        setTestRun({
+          running: false,
+          message: validation?.message || 'Cron expression is invalid.',
+          ok: false,
+        });
+        return;
+      }
+
+      const payload = {
+        target_url: targetUrl?.trim() ? targetUrl.trim() : undefined,
+        github_owner: githubOwner?.trim() ? githubOwner.trim() : undefined,
+        github_repo: github_repo,
+        github_workflow_name: githubWorkflow?.trim() ? githubWorkflow.trim() : undefined,
+        metadata: metadataObj,
+      };
+
+      const result = await jobService.testRun(payload);
+      setTestRun({
+        running: false,
+        ok: Boolean((result as any)?.ok),
+        message:
+          (result as any)?.message ||
+          ((result as any)?.ok ? 'Test run succeeded.' : 'Test run failed.'),
+      });
+    } catch (e: any) {
+      setTestRun({
+        running: false,
+        ok: false,
+        message: e?.response?.data?.message || e?.message || 'Test run failed.',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
@@ -232,6 +369,18 @@ export const JobForm = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="cron_expression">Cron Expression *</Label>
+                <div className="rounded-xl border border-indigo-200 dark:border-gray-700 bg-indigo-50/60 dark:bg-indigo-950/20 p-3">
+                  <div className="text-sm text-indigo-900 dark:text-indigo-100">
+                    <span className="font-semibold">Format:</span>{' '}
+                    <span className="font-mono">minute hour day month day-of-week</span>{' '}
+                    <span className="text-indigo-700/80 dark:text-indigo-200/80">
+                      (e.g., <span className="font-mono bg-white/70 dark:bg-gray-900/40 px-1 py-0.5 rounded">*/5 * * * *</span> = every 5 minutes)
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-indigo-700/80 dark:text-indigo-200/80">
+                    Cron is interpreted in <span className="font-semibold">JST</span> by default.
+                  </div>
+                </div>
                 <Input
                   id="cron_expression"
                   placeholder="*/5 * * * *"
@@ -239,7 +388,7 @@ export const JobForm = () => {
                   {...register('cron_expression', {
                     required: 'Cron expression is required',
                     validate: (value) => {
-                      // Basic validation - just check it has 5 parts separated by spaces
+                      // Fast local validation (backend validation runs in background and on submit)
                       const parts = value.trim().split(/\s+/);
                       if (parts.length !== 5) {
                         return 'Cron expression must have exactly 5 fields';
@@ -248,9 +397,75 @@ export const JobForm = () => {
                     },
                   })}
                 />
-                <p className="text-sm text-muted-foreground">
-                  Format: minute hour day month day-of-week (e.g., */5 * * * * = every 5 minutes)
-                </p>
+                {cronValidation && !cronValidation.valid && (
+                  <p className="text-sm text-destructive">{cronValidation.message || 'Invalid cron expression.'}</p>
+                )}
+                {cronValidation?.valid && (
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Cron{' '}
+                    <span className="font-mono rounded bg-green-50 dark:bg-green-950/30 px-1 py-0.5">
+                      {(cronExpression || '').trim()}
+                    </span>{' '}
+                    is valid
+                    {cronNextRun?.nextRunIso ? (
+                      <>
+                        {' '}
+                        and will run next at{' '}
+                        <span className="font-semibold">{formatJst(cronNextRun.nextRunIso)}</span> JST.
+                      </>
+                    ) : cronPreviewLoading ? (
+                      <> (loading next runs…)</>
+                    ) : (
+                      '.'
+                    )}
+                  </p>
+                )}
+                {cronPreviewError && <p className="text-sm text-destructive">{cronPreviewError}</p>}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 p-3 flex items-center justify-between gap-3">
+                  <div className="text-sm text-muted-foreground">
+                    {cronValidation?.valid
+                      ? 'Preview upcoming runs for this schedule.'
+                      : 'Enter a valid cron expression to preview runs.'}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!cronValidation?.valid || cronPreviewLoading}
+                    onClick={() => setShowCronPreview((v) => !v)}
+                    className="shrink-0 border-indigo-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 hover:bg-white dark:hover:bg-gray-700 text-indigo-700 dark:text-indigo-300 hover:shadow-md transition-all"
+                  >
+                    {showCronPreview ? 'Hide preview' : 'Preview next runs'}
+                  </Button>
+                </div>
+
+                {showCronPreview && (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">Next 5 runs</div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{cronPreview?.timezone || cronNextRun?.timezone || 'Asia/Tokyo'}</Badge>
+                        {cronPreviewLoading && <span className="text-xs text-muted-foreground">Loading…</span>}
+                      </div>
+                    </div>
+                    {cronPreview?.nextRuns?.length ? (
+                      <ul className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300">
+                        {cronPreview.nextRuns.map((iso) => (
+                          <li key={iso} className="flex items-center justify-between gap-3">
+                            <span className="truncate">
+                              {new Date(iso).toLocaleString(undefined, { timeZone: 'Asia/Tokyo' })}
+                            </span>
+                            <span className="text-xs text-muted-foreground">JST</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        {cronPreviewLoading ? 'Loading preview…' : 'No upcoming runs found.'}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -411,10 +626,31 @@ export const JobForm = () => {
                   <>{isEditMode ? 'Update Job' : 'Create Job'}</>
                 )}
               </Button>
+              <Button type="button" variant="outline" onClick={handleTestRun} disabled={isLoading || testRun.running}>
+                {testRun.running ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Testing…
+                  </>
+                ) : (
+                  <>Test run</>
+                )}
+              </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/jobs')}>
                 Cancel
               </Button>
             </div>
+            {testRun.message && (
+              <div
+                className={
+                  testRun.ok
+                    ? 'rounded-md bg-green-50 text-green-900 dark:bg-green-950/30 dark:text-green-100 p-3 text-sm border border-green-200 dark:border-green-900/60'
+                    : 'rounded-md bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100 p-3 text-sm border border-amber-200 dark:border-amber-900/60'
+                }
+              >
+                {testRun.message}
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>

@@ -8,6 +8,7 @@ type Props = {
   execution: JobExecution;
   open: boolean;
   onClose: () => void;
+  onRetry?: () => void;
 };
 
 const statusBadgeVariant = (status: JobExecution['status']) => {
@@ -16,7 +17,7 @@ const statusBadgeVariant = (status: JobExecution['status']) => {
   return 'secondary';
 };
 
-export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
+export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Props) {
   if (!open) return null;
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-3xl rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95">
+        <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95 flex flex-col">
           <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -45,7 +46,7 @@ export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
             </Button>
           </div>
 
-          <div className="p-5 space-y-3 text-sm">
+          <div className="p-5 space-y-3 text-sm overflow-y-auto flex-1">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="text-xs text-muted-foreground">Trigger</div>
@@ -98,6 +99,20 @@ export function ExecutionDetailsModal({ execution, open, onClose }: Props) {
                 {execution.output || '-'}
               </pre>
             </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 p-5 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+            {execution.status === 'failed' && onRetry && (
+              <Button
+                onClick={onRetry}
+                className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white shadow-sm hover:shadow-md transition-all"
+              >
+                Retry with same overrides
+              </Button>
+            )}
           </div>
         </div>
       </div>

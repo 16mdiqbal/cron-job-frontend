@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -7,16 +8,21 @@ import { jobService } from '@/services/api/jobService';
 import type { Job, JobExecution } from '@/types';
 import { ExecutionList } from '@/components/executions/ExecutionList';
 import { ExecutionDetailsModal } from '@/components/executions/ExecutionDetailsModal';
+import { RunJobModal } from '@/components/jobs/RunJobModal';
 
 export const ExecutionsPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { executions, isLoading, error, page, limit, totalPages, loadExecutions, setPage, setFilters, filters } =
     useExecutionStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedExecution, setSelectedExecution] = useState<JobExecution | null>(null);
-  const [rangePreset, setRangePreset] = useState<'all' | '7d' | '30d' | 'custom'>(() => 'all');
+  const [rangePreset, setRangePreset] = useState<'all' | '24h' | '7d' | '30d' | 'custom'>(() => '24h');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [retryJob, setRetryJob] = useState<Job | null>(null);
+  const [retryInitial, setRetryInitial] = useState<{ target_url?: string; dispatch_url?: string } | undefined>(undefined);
+  const appliedUrlFiltersRef = useRef(false);
   const isLoadingRef = useRef(false);
   const filtersRef = useRef(filters);
   const pageRef = useRef(page);
@@ -63,7 +69,46 @@ export const ExecutionsPage = () => {
   ]);
 
   useEffect(() => {
-    loadExecutions({ page: 1, limit: filters.limit ?? 20 })
+    const status = searchParams.get('status');
+    const jobId = searchParams.get('job_id');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const nextFilters: any = { page: 1, limit: filters.limit ?? 20 };
+
+    if (!appliedUrlFiltersRef.current) {
+      if (status === 'success' || status === 'failed' || status === 'running' || status === 'failed,running')
+        nextFilters.status = status;
+      if (jobId) nextFilters.job_id = jobId;
+      if (from) nextFilters.from = from;
+      if (to) nextFilters.to = to;
+
+      if (!status && !jobId && !from && !to) {
+        // No URL filters: prefer preserving the current store filters (e.g., when navigating away and back).
+        const current = filtersRef.current as any;
+        const hasExisting =
+          Boolean(current?.status) || Boolean(current?.job_id) || Boolean(current?.from) || Boolean(current?.to);
+
+        if (hasExisting) {
+          nextFilters.status = current.status;
+          nextFilters.job_id = current.job_id;
+          nextFilters.from = current.from;
+          nextFilters.to = current.to;
+        } else {
+          // First visit: default to "Last 24h + Failed/Running".
+          const fromIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          nextFilters.status = 'failed,running';
+          nextFilters.from = fromIso;
+          nextFilters.to = undefined;
+          setRangePreset('24h');
+          setFromDate('');
+          setToDate('');
+        }
+      }
+      appliedUrlFiltersRef.current = true;
+      setFilters(nextFilters);
+    }
+
+    loadExecutions(nextFilters)
       .catch((e) => console.error('Failed to load executions:', e))
       .finally(() => setHasLoadedOnce(true));
     jobService
@@ -71,12 +116,15 @@ export const ExecutionsPage = () => {
       .then(setJobs)
       .catch((e) => console.error('Failed to load jobs for executions filter:', e));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadExecutions]);
+  }, [loadExecutions, searchParams, setFilters]);
 
   const jobOptions = useMemo(() => jobs, [jobs]);
 
   // Auto-refresh so scheduled (cron) executions appear without manual reload
   useEffect(() => {
+    // Avoid double-fetch on mount/filter changes: initial load is handled by the URL/store filter effect.
+    if (!hasLoadedOnce) return;
+
     const shouldAutoRefresh = (() => {
       const to = filtersRef.current.to as string | undefined;
       if (!to) return true; // no upper bound: assume "live" view
@@ -105,8 +153,6 @@ export const ExecutionsPage = () => {
       return loadExecutions({ ...currentFilters, page: currentPage, limit: currentLimit }).catch(() => undefined);
     };
 
-    refresh();
-
     if (!shouldAutoRefresh) return;
 
     const onFocus = () => refresh();
@@ -125,7 +171,7 @@ export const ExecutionsPage = () => {
     };
   }, [loadExecutions, queryKey]);
 
-  const applyDateRange = (nextPreset: 'all' | '7d' | '30d' | 'custom', nextFrom?: string, nextTo?: string) => {
+  const applyDateRange = (nextPreset: 'all' | '24h' | '7d' | '30d' | 'custom', nextFrom?: string, nextTo?: string) => {
     const nextFilters: any = {
       ...filters,
       from: nextPreset === 'all' ? undefined : nextFrom || undefined,
@@ -185,6 +231,7 @@ export const ExecutionsPage = () => {
                   }}
                 >
                   <option value="all">All Status</option>
+                  <option value="failed,running">Failed + Running</option>
                   <option value="success">Success</option>
                   <option value="failed">Failed</option>
                   <option value="running">Running</option>
@@ -227,6 +274,14 @@ export const ExecutionsPage = () => {
                       return;
                     }
 
+                    if (preset === '24h') {
+                      setFromDate('');
+                      setToDate('');
+                      const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                      applyDateRange('24h', from, undefined);
+                      return;
+                    }
+
                     if (preset === '7d' || preset === '30d') {
                       const now = new Date();
                       const days = preset === '30d' ? 30 : 7;
@@ -243,6 +298,7 @@ export const ExecutionsPage = () => {
                   }}
                 >
                   <option value="all">All time</option>
+                  <option value="24h">Last 24 hours</option>
                   <option value="7d">Last 7 days</option>
                   <option value="30d">Last 30 days</option>
                   <option value="custom">Custom</option>
@@ -295,6 +351,15 @@ export const ExecutionsPage = () => {
               <ExecutionList
                 executions={executions}
                 onViewDetails={(execution) => setSelectedExecution(execution)}
+                onDrilldownJob={(jobId) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('job_id', jobId);
+                  setSearchParams(next, { replace: true });
+
+                  const nextFilters: any = { ...filters, job_id: jobId, page: 1 };
+                  setFilters(nextFilters);
+                  loadExecutions(nextFilters);
+                }}
               />
             )}
 
@@ -328,11 +393,53 @@ export const ExecutionsPage = () => {
                 open={Boolean(selectedExecution)}
                 execution={selectedExecution}
                 onClose={() => setSelectedExecution(null)}
+                onRetry={async () => {
+                  if (!selectedExecution || selectedExecution.status !== 'failed') return;
+                  try {
+                    const job = await jobService.getJob(selectedExecution.job_id);
+                    const init: { target_url?: string; dispatch_url?: string } = {};
+
+                    if (selectedExecution.execution_type === 'webhook' && selectedExecution.target) {
+                      init.target_url = selectedExecution.target;
+                    }
+
+                    if (selectedExecution.execution_type === 'github_actions' && selectedExecution.target) {
+                      const parts = selectedExecution.target.split('/').filter(Boolean);
+                      if (parts.length >= 3) {
+                        const owner = parts[0];
+                        const repo = parts[1];
+                        const workflow = parts.slice(2).join('/');
+                        init.dispatch_url = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
+                      }
+                    }
+
+                    setRetryInitial(Object.keys(init).length > 0 ? init : undefined);
+                    setRetryJob(job);
+                  } catch (e: any) {
+                    alert(e?.message || 'Failed to load job for retry.');
+                  }
+                }}
               />
             )}
           </div>
         </CardContent>
       </Card>
+
+      {retryJob && (
+        <RunJobModal
+          job={retryJob}
+          open={Boolean(retryJob)}
+          initial={retryInitial}
+          onClose={() => {
+            setRetryJob(null);
+            setRetryInitial(undefined);
+          }}
+          onRun={async (payload) => {
+            await jobService.executeJob(retryJob.id, payload);
+            alert('Job triggered successfully!');
+          }}
+        />
+      )}
     </div>
   );
 };

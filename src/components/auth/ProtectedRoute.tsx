@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { setPostLoginRedirect } from '@/services/utils/authRedirect';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,6 +13,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Check if user is authenticated
   if (!isAuthenticated) {
+    setPostLoginRedirect(`${location.pathname}${location.search}${location.hash}`);
     // Redirect to login page with return url
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

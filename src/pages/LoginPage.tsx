@@ -1,18 +1,27 @@
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { getAndClearPostLoginRedirect, isSafeInternalRedirect } from '@/services/utils/authRedirect';
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
     // Redirect to dashboard if already authenticated
     if (isAuthenticated) {
-      navigate('/dashboard');
+      const stateFrom = (location.state as any)?.from;
+      const statePath =
+        stateFrom && typeof stateFrom.pathname === 'string'
+          ? `${stateFrom.pathname || ''}${stateFrom.search || ''}${stateFrom.hash || ''}`
+          : null;
+      const stored = getAndClearPostLoginRedirect();
+      const next = statePath || stored;
+      navigate(isSafeInternalRedirect(next || '') ? (next as string) : '/dashboard', { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, location.state]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 dark:from-gray-900 dark:via-gray-850 dark:to-gray-800 px-4 py-12 relative overflow-hidden">

@@ -97,10 +97,23 @@ export const deleteNotification = async (notificationId: string): Promise<void> 
   await client.delete(`/notifications/${notificationId}`);
 };
 
+/**
+ * Delete all read notifications for the current user (optionally within date range).
+ */
+export const deleteReadNotifications = async (range?: NotificationRangeParams): Promise<number> => {
+  const params = new URLSearchParams();
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const response = await client.delete<{ deleted_count: number }>(`/notifications/delete-read${suffix}`);
+  return response.data.deleted_count;
+};
+
 export default {
   getNotifications,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
   deleteNotification,
+  deleteReadNotifications,
 };

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { EmailSettings } from '@/components/settings/EmailSettings';
@@ -12,6 +13,14 @@ type SettingsTab = 'profile' | 'notifications' | 'email' | 'security' | 'categor
 export const SettingsPage = () => {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'notifications' || tab === 'profile' || tab === 'email' || tab === 'security' || tab === 'categories') {
+      setActiveTab(tab as SettingsTab);
+    }
+  }, [searchParams]);
 
   const tabs = [
     { id: 'profile' as SettingsTab, label: 'Profile', icon: User },

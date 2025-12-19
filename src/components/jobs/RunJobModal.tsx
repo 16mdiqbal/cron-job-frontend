@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, Plus, Trash2, X, Play } from 'lucide-react';
 import type { Job } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,10 @@ type Props = {
   job: Job;
   open: boolean;
   onClose: () => void;
+  initial?: {
+    target_url?: string;
+    dispatch_url?: string;
+  };
   onRun: (payload: {
     metadata?: Record<string, any>;
     target_url?: string;
@@ -146,7 +151,8 @@ const rowsToMetadata = (rows: MetadataRow[]): Record<string, any> | undefined =>
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
-export function RunJobModal({ job, open, onClose, onRun }: Props) {
+export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const github = isGithubJob(job);
   const repoType = github ? getRepoType(job) : null;
   const badgeVariant = github
@@ -189,14 +195,78 @@ export function RunJobModal({ job, open, onClose, onRun }: Props) {
     setGithubOwner(job.github_owner || '');
     setGithubRepo(job.github_repo || '');
     setGithubWorkflow(job.github_workflow_name || '');
-    setTargetUrl(job.target_url || '');
-    setDispatchUrl(initialDispatchUrl);
+    setTargetUrl(initial?.target_url ?? job.target_url ?? '');
+    setDispatchUrl(initial?.dispatch_url ?? initialDispatchUrl);
     setGithubToken('');
     const split = splitMetadata(job.metadata);
     setMetadataRows(split.rows);
-  }, [open, job]);
+  }, [open, job, initial, initialDispatchUrl]);
+
+  const isBrowser = typeof document !== 'undefined';
+  useEffect(() => {
+    if (!open || !isBrowser) return;
+
+    const previousActive = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    window.setTimeout(() => {
+      dialogRef.current?.focus();
+    }, 0);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      previousActive?.focus?.();
+    };
+  }, [open, isBrowser]);
+
+  const getFocusable = () => {
+    const root = dialogRef.current;
+    if (!root) return [];
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+  };
+
+  const onDialogKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (e.key !== 'Tab') return;
+
+    const focusable = getFocusable();
+    if (focusable.length === 0) {
+      e.preventDefault();
+      dialogRef.current?.focus();
+      return;
+    }
+
+    const current = document.activeElement as HTMLElement | null;
+    const currentIndex = current ? focusable.indexOf(current) : -1;
+    const lastIndex = focusable.length - 1;
+
+    if (e.shiftKey) {
+      if (currentIndex <= 0) {
+        e.preventDefault();
+        focusable[lastIndex]?.focus();
+      }
+      return;
+    }
+
+    if (currentIndex === lastIndex) {
+      e.preventDefault();
+      focusable[0]?.focus();
+    }
+  };
 
   if (!open) return null;
+  // Render into a portal so `position: fixed` isn't affected by transformed ancestors (e.g., sticky header).
+  if (!isBrowser) return null;
 
   const handleRun = async () => {
     setError(null);
@@ -238,14 +308,21 @@ export function RunJobModal({ job, open, onClose, onRun }: Props) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50">
+  return createPortal(
+    <div className="fixed inset-0 z-[70]" role="presentation">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          onKeyDown={onDialogKeyDown}
+          className="w-full max-w-2xl max-h-[calc(100vh-2rem)] rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95 flex flex-col overflow-hidden"
+        >
           <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -259,7 +336,7 @@ export function RunJobModal({ job, open, onClose, onRun }: Props) {
             </Button>
           </div>
 
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 overflow-y-auto flex-1">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Cron expression</div>
@@ -435,7 +512,8 @@ export function RunJobModal({ job, open, onClose, onRun }: Props) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

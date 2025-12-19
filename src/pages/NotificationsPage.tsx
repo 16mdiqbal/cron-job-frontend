@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, CheckCheck, RefreshCcw, Trash2 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ export const NotificationsPage = () => {
     fetchUnreadCount,
     markNotificationAsRead,
     markAllNotificationsAsRead,
+    deleteReadNotifications,
     removeNotification,
   } = useNotificationStore();
 
@@ -94,6 +96,8 @@ export const NotificationsPage = () => {
     return 'Notifications';
   }, [unreadOnly]);
 
+  const readCountOnPage = useMemo(() => notifications.filter((n) => n.is_read).length, [notifications]);
+
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
@@ -105,6 +109,17 @@ export const NotificationsPage = () => {
             <p className="text-gray-600 dark:text-gray-400 mt-1">
               Inbox/history of system events and job activity.
             </p>
+            <div className="mt-3 inline-flex items-center gap-2 text-sm">
+              <span className="px-3 py-1.5 rounded-xl bg-white/70 dark:bg-gray-900/30 border border-indigo-100 dark:border-gray-700 text-gray-800 dark:text-gray-200">
+                Inbox
+              </span>
+              <Link
+                to="/settings?tab=notifications"
+                className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600"
+              >
+                Settings
+              </Link>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="text-sm text-muted-foreground">
@@ -175,6 +190,21 @@ export const NotificationsPage = () => {
                   Mark all read
                 </Button>
               )}
+              {readCountOnPage > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const ok = window.confirm('Delete all read notifications in the current date range?');
+                    if (!ok) return;
+                    await deleteReadNotifications();
+                    await refresh(1);
+                  }}
+                  disabled={loading}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete read
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -232,13 +262,8 @@ export const NotificationsPage = () => {
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span
-                            className={
-                              'px-2 py-0.5 rounded text-xs font-medium ' +
-                              getNotificationTypeColor(notification.type)
-                            }
-                          >
-                            {notification.type}
+                          <span className={'px-2 py-0.5 rounded text-xs font-medium ' + getNotificationTypeColor(notification.type)}>
+                            {notification.type === 'error' ? 'error' : notification.type}
                           </span>
                           {!notification.is_read && <span className="h-2 w-2 rounded-full bg-blue-500" />}
                           {timeAgo && <span className="text-xs text-muted-foreground">{timeAgo}</span>}
@@ -248,10 +273,18 @@ export const NotificationsPage = () => {
                         {(notification.related_job_id || notification.related_execution_id) && (
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             {notification.related_job_id && (
-                              <Badge variant="secondary">Job: {notification.related_job_id}</Badge>
+                              <Link
+                                to={`/jobs/${notification.related_job_id}/edit`}
+                                onClick={(e) => e.stopPropagation()}
+                                title={`Open job ${notification.related_job_id}`}
+                              >
+                                <Badge variant="secondary" className="hover:bg-accent">
+                                  Job
+                                </Badge>
+                              </Link>
                             )}
                             {notification.related_execution_id && (
-                              <Badge variant="secondary">Execution: {notification.related_execution_id}</Badge>
+                              <Badge variant="secondary" title={notification.related_execution_id ?? undefined}>Execution</Badge>
                             )}
                           </div>
                         )}
