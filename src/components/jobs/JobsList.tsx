@@ -14,19 +14,24 @@ import {
 } from '@/components/ui/table';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { JobFilters } from './JobFilters';
 import { Pagination } from './Pagination';
-import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X, ChevronUp, ChevronDown, Columns } from 'lucide-react';
 import type { Job } from '@/types';
 import { BulkUploadJobsCard } from './BulkUploadJobsCard';
 import { RunJobModal } from './RunJobModal';
 import { jobService } from '@/services/api/jobService';
 import { stringifyCsv } from '@/services/utils/csv';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
+import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
+import { useAuthStore } from '@/stores/authStore';
+import { authService, type JobsTableColumnsPreference } from '@/services/api/authService';
 
 const applyClientSideFilters = (
   jobs: Job[],
@@ -35,6 +40,7 @@ const applyClientSideFilters = (
     is_active?: boolean;
     github_repo?: 'api' | 'mobile' | 'web';
     category?: string;
+    pic_team?: string;
   }
 ) => {
   let filtered = jobs;
@@ -68,6 +74,10 @@ const applyClientSideFilters = (
     filtered = filtered.filter((job) => job.category === filters.category);
   }
 
+  if (filters.pic_team) {
+    filtered = filtered.filter((job) => (job as any).pic_team === filters.pic_team);
+  }
+
   return filtered;
 };
 
@@ -76,7 +86,9 @@ export const JobsList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [needsNoNextRun, setNeedsNoNextRun] = useState(false);
+  const [needsEndingSoon, setNeedsEndingSoon] = useState(false);
   const [initialStatus, setInitialStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const { user } = useAuthStore();
   const {
     jobs,
     isLoading,
@@ -94,6 +106,18 @@ export const JobsList = () => {
   } = useJobStore();
   const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
   const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [picTeams, setPicTeams] = useState<PicTeam[]>([]);
+  const defaultColumns: JobsTableColumnsPreference = useMemo(
+    () => ({
+      pic_team: true,
+      end_date: true,
+      cron_expression: false,
+      target_url: false,
+      last_execution_at: false,
+    }),
+    []
+  );
+  const [columnsPref, setColumnsPref] = useState<JobsTableColumnsPreference>(defaultColumns);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -113,7 +137,72 @@ export const JobsList = () => {
       .list(false)
       .then(setCategories)
       .catch((e) => console.error('Failed to load job categories:', e));
+    picTeamService
+      .list(false)
+      .then(setPicTeams)
+      .catch((e) => console.error('Failed to load PIC teams:', e));
   }, []);
+
+  // Load per-user column preferences (local cache first, then backend).
+  useEffect(() => {
+    let cancelled = false;
+    const userId = user?.id;
+    if (!userId) return;
+
+    const storageKey = `jobs-table-columns:${userId}`;
+    try {
+      const cached = localStorage.getItem(storageKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') {
+          setColumnsPref({ ...defaultColumns, ...(parsed as Partial<JobsTableColumnsPreference>) });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    (async () => {
+      try {
+        const prefs = await authService.getUiPreferences(userId);
+        const next = { ...defaultColumns, ...(prefs?.jobs_table_columns || {}) };
+        if (!cancelled) {
+          setColumnsPref(next);
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        }
+      } catch (e) {
+        // Keep local/default if backend call fails.
+        console.error('Failed to load UI preferences:', e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, defaultColumns]);
+
+  const persistColumnsPref = async (next: JobsTableColumnsPreference) => {
+    const userId = user?.id;
+    if (!userId) return;
+    const storageKey = `jobs-table-columns:${userId}`;
+    localStorage.setItem(storageKey, JSON.stringify(next));
+    try {
+      await authService.updateUiPreferences(userId, { jobs_table_columns: next });
+    } catch (e) {
+      console.error('Failed to persist UI preferences:', e);
+    }
+  };
+
+  const toggleColumn = (key: keyof JobsTableColumnsPreference) => {
+    const next = { ...columnsPref, [key]: !columnsPref[key] };
+    setColumnsPref(next);
+    persistColumnsPref(next);
+  };
+
+  const resetColumns = () => {
+    setColumnsPref(defaultColumns);
+    persistColumnsPref(defaultColumns);
+  };
 
   useEffect(() => {
     const fromUrl = searchParams.get('category');
@@ -128,12 +217,16 @@ export const JobsList = () => {
     const isActive =
       statusParam === 'active' ? true : statusParam === 'inactive' ? false : undefined;
     const nextSortBy =
-      sortBy === 'name' || sortBy === 'repo' || sortBy === 'status' ? sortBy : undefined;
+      sortBy === 'name' || sortBy === 'repo' || sortBy === 'status' || sortBy === 'end_date'
+        ? sortBy
+        : undefined;
     const nextSortDir = sortDir === 'desc' ? 'desc' : sortDir === 'asc' ? 'asc' : undefined;
     const nextNeedsNoNextRun = needsParam === 'no-next-run';
-    const nextLimit = nextNeedsNoNextRun ? 100 : 10;
+    const nextNeedsEndingSoon = needsParam === 'ending-soon';
+    const nextLimit = nextNeedsNoNextRun || nextNeedsEndingSoon ? 100 : 10;
 
     setNeedsNoNextRun(nextNeedsNoNextRun);
+    setNeedsEndingSoon(nextNeedsEndingSoon);
     setInitialStatus(isActive === true ? 'active' : isActive === false ? 'inactive' : 'all');
 
     const nextFilters = {
@@ -162,7 +255,7 @@ export const JobsList = () => {
     loadJobs({ ...filters, category, page: 1, limit: 10 }).catch(() => undefined);
   };
 
-  const setSort = (sort_by: 'name' | 'repo' | 'status') => {
+  const setSort = (sort_by: 'name' | 'repo' | 'status' | 'end_date') => {
     const currentBy = filters.sort_by;
     const currentDir = filters.sort_dir || 'asc';
     const nextDir: 'asc' | 'desc' =
@@ -177,7 +270,7 @@ export const JobsList = () => {
     loadJobs({ ...filters, sort_by, sort_dir: nextDir, page: 1, limit: 10 }).catch(() => undefined);
   };
 
-  const sortIcon = (key: 'name' | 'repo' | 'status') => {
+  const sortIcon = (key: 'name' | 'repo' | 'status' | 'end_date') => {
     if (filters.sort_by !== key) return <span className="inline-block w-4" />;
     return filters.sort_dir === 'desc' ? (
       <ChevronDown className="ml-1 h-4 w-4 text-indigo-600 dark:text-indigo-300" />
@@ -198,6 +291,12 @@ export const JobsList = () => {
     }
     return base;
   }, [categories]);
+
+  const picTeamLabelBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of picTeams) map.set(t.slug, t.name);
+    return map;
+  }, [picTeams]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this job?')) {
@@ -251,15 +350,28 @@ export const JobsList = () => {
   };
 
   const displayJobs = useMemo(() => {
-    if (!needsNoNextRun) return jobs;
-    return jobs.filter((j) => j.is_active && !j.next_execution_at);
-  }, [jobs, needsNoNextRun]);
+    if (!needsNoNextRun && !needsEndingSoon) return jobs;
+    if (needsNoNextRun) return jobs.filter((j) => j.is_active && !j.next_execution_at);
+
+    const todayJst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+    const todayStartMs = new Date(`${todayJst}T00:00:00+09:00`).getTime();
+    const cutoffMs = todayStartMs + 30 * 24 * 60 * 60 * 1000;
+
+    return jobs.filter((j) => {
+      if (!j.is_active) return false;
+      const endDate = (j as any).end_date as string | null | undefined;
+      if (!endDate) return false;
+      const endMs = new Date(`${endDate}T00:00:00+09:00`).getTime();
+      return endMs >= todayStartMs && endMs <= cutoffMs;
+    });
+  }, [jobs, needsNoNextRun, needsEndingSoon]);
 
   const clearNeedsFilter = () => {
     const next = new URLSearchParams(searchParams);
     next.delete('needs');
     setSearchParams(next, { replace: true });
     setNeedsNoNextRun(false);
+    setNeedsEndingSoon(false);
     setFilters({ limit: 10, page: 1 });
     loadJobs({ ...filters, limit: 10, page: 1 }).catch(() => undefined);
   };
@@ -288,42 +400,51 @@ export const JobsList = () => {
         return;
       }
 
-      const headers = [
-        'id',
-        'name',
-        'cron_expression',
-        'is_active',
-        'target_url',
-        'github_owner',
-        'github_repo',
-        'github_workflow_name',
-        'created_at',
-        'updated_at',
-        'last_execution_at',
-        'next_execution_at',
-        'enable_email_notifications',
-        'notification_emails',
-        'notify_on_success',
-        'metadata',
-      ];
-      const rows = allJobs.map((job) => [
-        job.id ?? '',
-        job.name ?? '',
-        job.cron_expression ?? '',
-        String(Boolean(job.is_active)),
-        job.target_url ?? '',
-        job.github_owner ?? '',
-        job.github_repo ?? '',
-        job.github_workflow_name ?? '',
-        job.created_at ?? '',
-        job.updated_at ?? '',
-        job.last_execution_at ?? '',
-        job.next_execution_at ?? '',
-        String(Boolean(job.enable_email_notifications)),
-        Array.isArray(job.notification_emails) ? job.notification_emails.join(',') : '',
-        String(Boolean(job.notify_on_success)),
-        job.metadata ? JSON.stringify(job.metadata) : '',
-      ]);
+      // Export follows visible columns (plus mandatory columns that are always shown in the table).
+      const headers: string[] = ['name', 'github_repo', 'is_active', 'next_execution_at'];
+      if (columnsPref.pic_team) headers.push('pic_team');
+      if (columnsPref.end_date) headers.push('end_date');
+      if (columnsPref.cron_expression) headers.push('cron_expression');
+      if (columnsPref.target_url) headers.push('target_url');
+      if (columnsPref.last_execution_at) headers.push('last_execution_at');
+
+      const rows = allJobs.map((job) => {
+        const row: string[] = [];
+        for (const h of headers) {
+          switch (h) {
+            case 'name':
+              row.push(job.name ?? '');
+              break;
+            case 'github_repo':
+              row.push(job.github_repo ?? '');
+              break;
+            case 'is_active':
+              row.push(String(Boolean(job.is_active)));
+              break;
+            case 'next_execution_at':
+              row.push(job.next_execution_at ?? '');
+              break;
+            case 'pic_team':
+              row.push((job as any).pic_team ?? '');
+              break;
+            case 'end_date':
+              row.push((job as any).end_date ?? '');
+              break;
+            case 'cron_expression':
+              row.push(job.cron_expression ?? '');
+              break;
+            case 'target_url':
+              row.push(job.target_url ?? '');
+              break;
+            case 'last_execution_at':
+              row.push(job.last_execution_at ?? '');
+              break;
+            default:
+              row.push('');
+          }
+        }
+        return row;
+      });
 
       const csvText = stringifyCsv({ headers, rows });
       downloadBlob(`jobs-${timestamp}.csv`, new Blob([csvText], { type: 'text/csv;charset=utf-8' }));
@@ -338,6 +459,16 @@ export const JobsList = () => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
+  };
+
+  const getEndDateInfo = (endDate?: string | null) => {
+    if (!endDate) return null;
+    const todayJst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+    const todayStartMs = new Date(`${todayJst}T00:00:00+09:00`).getTime();
+    const endMs = new Date(`${endDate}T00:00:00+09:00`).getTime();
+    if (Number.isNaN(endMs)) return null;
+    const daysLeft = Math.round((endMs - todayStartMs) / (24 * 60 * 60 * 1000));
+    return { endDate, daysLeft };
   };
 
   useEffect(() => {
@@ -418,6 +549,7 @@ export const JobsList = () => {
       search: 'search' in safeIncoming ? (safeIncoming.search || undefined) : undefined,
       is_active: 'is_active' in safeIncoming ? safeIncoming.is_active : undefined,
       github_repo: 'github_repo' in safeIncoming ? safeIncoming.github_repo : undefined,
+      pic_team: 'pic_team' in safeIncoming ? safeIncoming.pic_team : undefined,
       category: filters.category,
     };
 
@@ -425,7 +557,8 @@ export const JobsList = () => {
     const unchanged =
       nextFilters.search === filters.search &&
       nextFilters.is_active === filters.is_active &&
-      nextFilters.github_repo === filters.github_repo;
+      nextFilters.github_repo === filters.github_repo &&
+      (nextFilters as any).pic_team === (filters as any).pic_team;
     if (unchanged && page === 1) return;
 
     setSelectedIds(new Set());
@@ -538,6 +671,7 @@ export const JobsList = () => {
         is_active: filters.is_active,
         github_repo: filters.github_repo,
         category: filters.category,
+        pic_team: (filters as any).pic_team,
       });
       const ok = window.confirm(
         `Select all ${matching.length} job(s) matching current filters? This includes jobs not visible on this page.`
@@ -632,7 +766,7 @@ export const JobsList = () => {
         })}
       </div>
 
-      <JobFilters onFilterChange={handleFilterChange} initialStatus={initialStatus} />
+      <JobFilters onFilterChange={handleFilterChange} initialStatus={initialStatus} picTeams={picTeams} />
 
       {needsNoNextRun && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 p-4 text-sm">
@@ -643,6 +777,30 @@ export const JobsList = () => {
                 <div className="font-medium">Showing jobs with no next run</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
                   Loaded up to 100 jobs and filtered to active jobs missing a scheduled next run.
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearNeedsFilter}
+              className="border-amber-300 dark:border-amber-900/60 bg-white/80 dark:bg-gray-900/20 hover:bg-white dark:hover:bg-gray-800"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {needsEndingSoon && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 p-4 text-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5" />
+              <div>
+                <div className="font-medium">Showing jobs ending soon</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Loaded up to 100 jobs and filtered to active jobs ending in the next 30 days (JST).
                 </div>
               </div>
             </div>
@@ -735,12 +893,62 @@ export const JobsList = () => {
               </>
             ) : null}
           </div>
-          {!needsNoNextRun && totalPages > 0 && (
-            <div>
-              Page <span className="font-medium text-foreground">{page}</span> of{' '}
-              <span className="font-medium text-foreground">{totalPages}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-indigo-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80"
+                  title="Choose visible columns"
+                >
+                  <Columns className="mr-2 h-4 w-4" />
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700">
+                <DropdownMenuCheckboxItem
+                  checked={Boolean(columnsPref.pic_team)}
+                  onCheckedChange={() => toggleColumn('pic_team')}
+                >
+                  PIC Team
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={Boolean(columnsPref.end_date)}
+                  onCheckedChange={() => toggleColumn('end_date')}
+                >
+                  End date
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={Boolean(columnsPref.cron_expression)}
+                  onCheckedChange={() => toggleColumn('cron_expression')}
+                >
+                  Cron expression
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={Boolean(columnsPref.target_url)}
+                  onCheckedChange={() => toggleColumn('target_url')}
+                >
+                  Target URL
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={Boolean(columnsPref.last_execution_at)}
+                  onCheckedChange={() => toggleColumn('last_execution_at')}
+                >
+                  Last execution
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={resetColumns}>Reset to default</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {!needsNoNextRun && totalPages > 0 && (
+              <div>
+                Page <span className="font-medium text-foreground">{page}</span> of{' '}
+                <span className="font-medium text-foreground">{totalPages}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -853,9 +1061,22 @@ export const JobsList = () => {
                     {sortIcon('status')}
                   </button>
                 </TableHead>
-                <TableHead>Cron Expression</TableHead>
-                <TableHead>Target URL</TableHead>
-                <TableHead>Last Execution</TableHead>
+                {columnsPref.pic_team && <TableHead>PIC Team</TableHead>}
+                {columnsPref.end_date && (
+                  <TableHead>
+                    <button
+                      type="button"
+                      onClick={() => setSort('end_date')}
+                      className="inline-flex items-center hover:text-indigo-700 dark:hover:text-indigo-300"
+                    >
+                      End date
+                      {sortIcon('end_date')}
+                    </button>
+                  </TableHead>
+                )}
+                {columnsPref.cron_expression && <TableHead>Cron Expression</TableHead>}
+                {columnsPref.target_url && <TableHead>Target URL</TableHead>}
+                {columnsPref.last_execution_at && <TableHead>Last Execution</TableHead>}
                 <TableHead>Next Run</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -875,15 +1096,45 @@ export const JobsList = () => {
                   <TableCell className="font-medium">{job.name}</TableCell>
                   <TableCell>{getRepoBadge(job) || <span className="text-muted-foreground">-</span>}</TableCell>
                   <TableCell>{getStatusBadge(job)}</TableCell>
-                  <TableCell>
-                    <code className="text-sm bg-muted px-2 py-1 rounded">
-                      {job.cron_expression}
-                    </code>
-                  </TableCell>
-                  <TableCell className="text-sm truncate max-w-xs">
-                    {job.target_url || job.github_workflow_name || '-'}
-                  </TableCell>
-                  <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>
+                  {columnsPref.pic_team && (
+                    <TableCell>
+                      {job.pic_team ? (
+                        <span title={job.pic_team}>{picTeamLabelBySlug.get(job.pic_team) || job.pic_team}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {columnsPref.end_date && (
+                    <TableCell>
+                      {job.end_date ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-sm">{job.end_date}</span>
+                          {(() => {
+                            const info = getEndDateInfo(job.end_date);
+                            if (!info) return <span className="text-xs text-muted-foreground">JST</span>;
+                            if (info.daysLeft < 0) return <Badge variant="secondary">expired</Badge>;
+                            if (info.daysLeft === 0) return <Badge variant="warning">today</Badge>;
+                            if (info.daysLeft <= 30) return <Badge variant="warning">{info.daysLeft}d</Badge>;
+                            return <span className="text-xs text-muted-foreground">{info.daysLeft}d</span>;
+                          })()}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {columnsPref.cron_expression && (
+                    <TableCell>
+                      <code className="text-sm bg-muted px-2 py-1 rounded">{job.cron_expression}</code>
+                    </TableCell>
+                  )}
+                  {columnsPref.target_url && (
+                    <TableCell className="text-sm truncate max-w-xs">
+                      {job.target_url || job.github_workflow_name || '-'}
+                    </TableCell>
+                  )}
+                  {columnsPref.last_execution_at && <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>}
                   <TableCell className="text-sm">
                     <div className="flex flex-col leading-tight">
                       <span className={getNextExecutionTextClassName(job.next_execution_at) || undefined}>

@@ -40,14 +40,17 @@ npm run type-check
 - Authentication (JWT)
 - Jobs
   - Create/edit/delete
+  - Required fields: **End date (JST)** + **PIC Team**
+  - Cron validation + preview (“Next 5 runs”) + “Test run” (pre-save)
   - Category (defaults to “General”)
   - Category tabs on Jobs table (persists)
   - Enable/disable
   - Next Execution highlighting (JST): < 1 hour (orange), < 12 hours (sky)
-  - Table sorting (name/repo/status)
+  - Table sorting (name/repo/status/end date)
+  - Configurable columns per user (persisted): PIC Team, End date, Cron Expression, Target URL, Last Execution
   - Bulk upload via CSV + template download
   - Bulk actions (enable/disable/delete)
-  - Export/download jobs as CSV/JSON
+  - Export/download jobs as CSV/JSON (CSV follows visible columns)
   - “Run now” modal with per-run overrides (not saved)
 - Executions
   - History list + details modal
@@ -58,8 +61,10 @@ npm run type-check
 - Settings
   - **Notification Preferences** (configuration lives here)
   - **Job Categories** (admin-managed list used in Jobs)
+  - **PIC Teams** (admin-managed list used in Jobs)
 - Dashboard
   - Live totals and execution statistics (auto-refresh) + date range filter for stats
+  - “Needs attention” shortcuts (failed last 24h, no next run, ending soon, disabled jobs)
 - Theme
   - Light/Dark toggle (persists in localStorage)
 

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { CreateJobRequest } from '@/services/api/jobService';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
+import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
 import { jobService } from '@/services/api/jobService';
 import { Badge } from '@/components/ui/badge';
 
@@ -27,6 +28,8 @@ interface JobFormData {
   github_repo: string;
   github_workflow_name: string;
   category?: string;
+  end_date: string;
+  pic_team: string;
 }
 
 export const JobForm = () => {
@@ -35,9 +38,11 @@ export const JobForm = () => {
   const { currentJob, isLoading, createJob, updateJob, loadJob, clearCurrentJob } = useJobStore();
   const { fetchUnreadCount, fetchNotifications } = useNotificationStore();
   const isEditMode = !!id;
+  const [saving, setSaving] = useState(false);
   const [metadata, setMetadata] = useState<MetadataField[]>([{ key: '', value: '' }]);
   const [metadataError, setMetadataError] = useState<string>('');
   const [categories, setCategories] = useState<JobCategory[]>([]);
+  const [picTeams, setPicTeams] = useState<PicTeam[]>([]);
   const [cronValidation, setCronValidation] = useState<{ valid: boolean; message?: string } | null>(
     null
   );
@@ -67,6 +72,8 @@ export const JobForm = () => {
       github_repo: 'api',
       github_workflow_name: '',
       category: 'general',
+      end_date: '',
+      pic_team: '',
     },
   });
 
@@ -96,6 +103,10 @@ export const JobForm = () => {
       .list(false)
       .then(setCategories)
       .catch((e) => console.error('Failed to load job categories:', e));
+    picTeamService
+      .list(false)
+      .then(setPicTeams)
+      .catch((e) => console.error('Failed to load PIC teams:', e));
     return () => {
       clearCurrentJob();
     };
@@ -112,6 +123,8 @@ export const JobForm = () => {
         github_repo: currentJob.github_repo || 'api',
         github_workflow_name: currentJob.github_workflow_name || '',
         category: currentJob.category || 'general',
+        end_date: (currentJob as any).end_date || '',
+        pic_team: (currentJob as any).pic_team || '',
       });
       
       // Load metadata
@@ -240,6 +253,8 @@ export const JobForm = () => {
         return;
       }
 
+      setSaving(true);
+
       // Build metadata object from fields
       const metadataObj: Record<string, string> = {};
       metadata.forEach(m => {
@@ -254,6 +269,8 @@ export const JobForm = () => {
         github_owner: data.github_owner.trim(),
         github_repo: data.github_repo,
         github_workflow_name: data.github_workflow_name.trim(),
+        end_date: data.end_date,
+        pic_team: data.pic_team,
         metadata: metadataObj,
         category: data.category || 'general',
       };
@@ -284,6 +301,7 @@ export const JobForm = () => {
       if (error instanceof Error) {
         alert(`Failed to ${isEditMode ? 'update' : 'create'} job: ${error.message}`);
       }
+      setSaving(false);
     }
   };
 
@@ -485,6 +503,54 @@ export const JobForm = () => {
                 </p>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="end_date">End Date (JST) *</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    error={errors.end_date?.message}
+                    {...register('end_date', { required: 'End date is required' })}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    After this date, the job will be auto-paused to avoid unnecessary executions.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="pic_team">PIC Team *</Label>
+                  <Select
+                    id="pic_team"
+                    error={errors.pic_team?.message}
+                    {...register('pic_team', { required: 'PIC team is required' })}
+                  >
+                    <option value="">Select a team…</option>
+                    {picTeams
+                      .filter((t) => t.is_active)
+                      .map((t) => (
+                        <option key={t.id} value={t.slug}>
+                          {t.name}
+                        </option>
+                      ))}
+                  </Select>
+                  {picTeams.filter((t) => t.is_active).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No PIC teams found. Ask an admin to add one in{' '}
+                      <button
+                        type="button"
+                        onClick={() => navigate('/settings?tab=pic-teams')}
+                        className="text-indigo-700 dark:text-indigo-300 underline underline-offset-4"
+                      >
+                        Settings → PIC Teams
+                      </button>
+                      .
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Choose the team responsible for this job.</p>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="target_url">Webhook URL (Optional)</Label>
                 <Input
@@ -616,8 +682,8 @@ export const JobForm = () => {
 
             {/* Form Actions */}
             <div className="flex gap-4">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
+              <Button type="submit" disabled={isLoading || saving}>
+                {isLoading || saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {isEditMode ? 'Updating...' : 'Creating...'}
@@ -626,7 +692,12 @@ export const JobForm = () => {
                   <>{isEditMode ? 'Update Job' : 'Create Job'}</>
                 )}
               </Button>
-              <Button type="button" variant="outline" onClick={handleTestRun} disabled={isLoading || testRun.running}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleTestRun}
+                disabled={isLoading || saving || testRun.running}
+              >
                 {testRun.running ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -636,7 +707,7 @@ export const JobForm = () => {
                   <>Test run</>
                 )}
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/jobs')}>
+              <Button type="button" variant="outline" onClick={() => navigate('/jobs')} disabled={isLoading || saving}>
                 Cancel
               </Button>
             </div>

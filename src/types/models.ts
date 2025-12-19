@@ -18,6 +18,8 @@ export interface Job {
   github_repo?: string;
   github_workflow_name?: string;
   category?: string;
+  end_date?: string | null; // YYYY-MM-DD
+  pic_team?: string | null; // PicTeam.slug
   is_active: boolean;
   created_by?: string;
   created_at: string;

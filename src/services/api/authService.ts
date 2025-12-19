@@ -15,6 +15,18 @@ export interface LoginResponse {
   user: User;
 }
 
+export type JobsTableColumnsPreference = {
+  pic_team: boolean;
+  end_date: boolean;
+  cron_expression: boolean;
+  target_url: boolean;
+  last_execution_at: boolean;
+};
+
+export type UiPreferences = {
+  jobs_table_columns: JobsTableColumnsPreference;
+};
+
 /**
  * Authentication Service
  * Handles all authentication-related API calls
@@ -74,6 +86,16 @@ export const authService = {
       headers: { Authorization: `Bearer ${refresh}` },
     });
     return data.access_token;
+  },
+
+  async getUiPreferences(userId: string): Promise<UiPreferences> {
+    const { data } = await client.get(`/auth/users/${userId}/ui-preferences`);
+    return data.preferences;
+  },
+
+  async updateUiPreferences(userId: string, preferences: UiPreferences): Promise<UiPreferences> {
+    const { data } = await client.put(`/auth/users/${userId}/ui-preferences`, preferences);
+    return data.preferences;
   },
 };
 

@@ -15,6 +15,7 @@ export const DashboardPage = () => {
   const [executionStats, setExecutionStats] = useState<ExecutionStatistics | null>(null);
   const [failedLast24h, setFailedLast24h] = useState(0);
   const [jobsNoNextRun, setJobsNoNextRun] = useState(0);
+  const [jobsEndingSoon, setJobsEndingSoon] = useState(0);
   const [rangePreset, setRangePreset] = useState<'7d' | '30d' | 'custom'>(() => '7d');
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
@@ -55,6 +56,18 @@ export const DashboardPage = () => {
         setExecutionStats(stats);
 
         setJobsNoNextRun(allJobs.filter((j) => j.is_active && !j.next_execution_at).length);
+
+        const todayJst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+        const todayStartMs = new Date(`${todayJst}T00:00:00+09:00`).getTime();
+        const cutoffMs = todayStartMs + 30 * 24 * 60 * 60 * 1000;
+        setJobsEndingSoon(
+          allJobs.filter((j: any) => {
+            if (!j.is_active) return false;
+            if (!j.end_date) return false;
+            const endMs = new Date(`${j.end_date}T00:00:00+09:00`).getTime();
+            return !Number.isNaN(endMs) && endMs >= todayStartMs && endMs <= cutoffMs;
+          }).length
+        );
 
         try {
           const last24hStats = await executionService.getStatistics({
@@ -218,7 +231,7 @@ export const DashboardPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
             <Link
               to={`/executions?status=failed&from=${encodeURIComponent(
                 new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -255,6 +268,26 @@ export const DashboardPage = () => {
                   <div className="mt-1 text-xs text-muted-foreground">Active jobs missing schedule</div>
                 </div>
                 <Badge variant={jobsNoNextRun > 0 ? 'warning' : 'secondary'}>{jobsNoNextRun}</Badge>
+              </div>
+              <div className="mt-3 text-sm text-indigo-700 dark:text-indigo-300 group-hover:underline underline-offset-4">
+                View
+              </div>
+            </Link>
+
+            <Link
+              to="/jobs?status=active&needs=ending-soon"
+              className="group rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Jobs ending soon"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    <div className="font-medium text-gray-900 dark:text-gray-100">Ending soon</div>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">End date within 30 days (JST)</div>
+                </div>
+                <Badge variant={jobsEndingSoon > 0 ? 'warning' : 'secondary'}>{jobsEndingSoon}</Badge>
               </div>
               <div className="mt-3 text-sm text-indigo-700 dark:text-indigo-300 group-hover:underline underline-offset-4">
                 View

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
       is_active: true,
       cron_expression: '* * * * *',
       next_execution_at: '2025-01-01T01:00:00.000Z',
+      end_date: '2025-01-15',
     },
     {
       id: '2',
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
       is_active: true,
       cron_expression: '* * * * *',
       next_execution_at: null,
+      end_date: '2025-03-01',
     },
     {
       id: '3',
@@ -25,6 +27,7 @@ const mocks = vi.hoisted(() => ({
       is_active: false,
       cron_expression: '* * * * *',
       next_execution_at: null,
+      end_date: '2025-02-01',
     },
   ]),
   getStatistics: vi.fn().mockResolvedValue({
@@ -84,6 +87,10 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('link', { name: /jobs with no next run scheduled/i })).toHaveAttribute(
       'href',
       '/jobs?status=active&needs=no-next-run'
+    );
+    expect(screen.getByRole('link', { name: /jobs ending soon/i })).toHaveAttribute(
+      'href',
+      '/jobs?status=active&needs=ending-soon'
     );
     expect(screen.getByRole('link', { name: /disabled jobs/i })).toHaveAttribute('href', '/jobs?status=inactive');
     vi.restoreAllMocks();
