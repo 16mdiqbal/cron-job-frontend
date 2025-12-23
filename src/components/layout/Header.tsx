@@ -3,10 +3,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
-import { Menu, Clock, Moon, Sun } from 'lucide-react';
+import { Menu, Clock, Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
-import { applyTheme, getInitialTheme, setStoredTheme, toggleTheme, type ThemeMode } from '@/services/utils/theme';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { applyTheme, getInitialTheme, setStoredTheme, type ThemeMode } from '@/services/utils/theme';
 import { QuickActionsMenu } from '@/components/layout/QuickActionsMenu';
 import { getTokenExpiryMs } from '@/services/utils/jwt';
 
@@ -55,6 +64,13 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
     msRemaining! > 0 &&
     msRemaining! <= 2 * 60_000 &&
     !dismissedUntilExpiry;
+
+  const themeLabel = theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light';
+
+  const handleThemeChange = (next: ThemeMode) => {
+    setTheme(next);
+    setStoredTheme(next);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -110,21 +126,46 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         <div className="flex items-center space-x-4">
           <QuickActionsMenu />
 
-          <Tooltip content={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} position="bottom">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                const next = toggleTheme(theme);
-                setTheme(next);
-                setStoredTheme(next);
-                applyTheme(next);
-              }}
-              className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
-            >
-              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
-          </Tooltip>
+          <DropdownMenu>
+            <Tooltip content={`Theme: ${themeLabel}`} position="bottom">
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+                >
+                  {theme === 'system' ? (
+                    <Monitor className="h-5 w-5" />
+                  ) : theme === 'dark' ? (
+                    <Moon className="h-5 w-5" />
+                  ) : (
+                    <Sun className="h-5 w-5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="min-w-[10rem]">
+              <DropdownMenuLabel>Theme</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup
+                value={theme}
+                onValueChange={(value) => handleThemeChange(value as ThemeMode)}
+              >
+                <DropdownMenuRadioItem value="system">
+                  <Monitor className="h-4 w-4" />
+                  System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="h-4 w-4" />
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="h-4 w-4" />
+                  Dark
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Notifications */}
           <NotificationsDropdown />
