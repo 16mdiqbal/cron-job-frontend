@@ -4,6 +4,7 @@ import { Plus, Zap, Play, XCircle, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import {
@@ -81,17 +82,18 @@ export function QuickActionsMenu() {
   return (
     <>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="Quick actions"
-            aria-label="Quick actions"
-            className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
-          >
-            <Zap className="h-5 w-5" />
-          </Button>
-        </DropdownMenuTrigger>
+        <Tooltip content="Quick actions" position="bottom">
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Quick actions"
+              className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+            >
+              <Zap className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+        </Tooltip>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem asChild>
             <Link to="/jobs/new">
@@ -138,10 +140,12 @@ export function QuickActionsMenu() {
                     <h2 className="text-lg font-semibold">Run job</h2>
                     <div className="text-sm text-muted-foreground">Choose an active job to run now.</div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)} title="Close">
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                  </Button>
+                  <Tooltip content="Close" position="left">
+                    <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Close</span>
+                    </Button>
+                  </Tooltip>
                 </div>
 
                 <div className="p-5 space-y-4">

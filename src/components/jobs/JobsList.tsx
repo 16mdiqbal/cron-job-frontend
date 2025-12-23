@@ -4,6 +4,7 @@ import { useJobStore } from '@/stores/jobStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip } from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -33,6 +34,42 @@ import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
 import { useAuthStore } from '@/stores/authStore';
 import { authService, type JobsTableColumnsPreference } from '@/services/api/authService';
 
+const _looksLikeDispatchShorthand = (value: string): boolean => {
+  const v = value.trim();
+  if (!v || v.includes('://') || v.includes(' ')) return false;
+  const parts = v.split('/').filter(Boolean);
+  return parts.length >= 3;
+};
+
+const _githubWorkflowUrlFromParts = (owner: string, repo: string, workflow: string): string => {
+  const cleanedOwner = (owner || '').trim() || 'Pay-Baymax';
+  const cleanedRepo = (repo || '').trim();
+  const cleanedWorkflow = (workflow || '').trim();
+  const workflowFile = /\.(ya?ml)$/i.test(cleanedWorkflow) ? cleanedWorkflow : `${cleanedWorkflow}.yml`;
+  return `https://github.com/${cleanedOwner}/${cleanedRepo}/actions/workflows/${workflowFile}`;
+};
+
+const getJobTargetDisplay = (job: Job): string | null => {
+  const repo = job.github_repo?.trim();
+  const workflow = job.github_workflow_name?.trim();
+  if (repo && workflow) {
+    return _githubWorkflowUrlFromParts(job.github_owner || 'Pay-Baymax', repo, workflow);
+  }
+
+  const target = job.target_url?.trim();
+  if (!target) return null;
+
+  if (_looksLikeDispatchShorthand(target)) {
+    const parts = target.split('/').filter(Boolean);
+    const owner = parts[0] || 'Pay-Baymax';
+    const repoPart = parts[1] || '';
+    const workflowPart = parts.slice(2).join('/') || '';
+    if (repoPart && workflowPart) return _githubWorkflowUrlFromParts(owner, repoPart, workflowPart);
+  }
+
+  return target;
+};
+
 const applyClientSideFilters = (
   jobs: Job[],
   filters: {
@@ -49,7 +86,10 @@ const applyClientSideFilters = (
     const searchLower = filters.search.toLowerCase();
     filtered = filtered.filter((job) =>
       job.name.toLowerCase().includes(searchLower) ||
-      job.target_url?.toLowerCase().includes(searchLower)
+      (getJobTargetDisplay(job) || '').toLowerCase().includes(searchLower) ||
+      (job.github_owner || '').toLowerCase().includes(searchLower) ||
+      (job.github_repo || '').toLowerCase().includes(searchLower) ||
+      (job.github_workflow_name || '').toLowerCase().includes(searchLower)
     );
   }
 
@@ -434,7 +474,7 @@ export const JobsList = () => {
               row.push(job.cron_expression ?? '');
               break;
             case 'target_url':
-              row.push(job.target_url ?? '');
+              row.push(getJobTargetDisplay(job) ?? '');
               break;
             case 'last_execution_at':
               row.push(job.last_execution_at ?? '');
@@ -534,9 +574,11 @@ export const JobsList = () => {
     const variant = repoType === 'api' ? 'info' : repoType === 'web' ? 'secondary' : 'warning';
     const label = repoType.toUpperCase();
     return (
-      <Badge variant={variant} className="uppercase tracking-wide" title={`Repo type: ${label}`}>
-        {label}
-      </Badge>
+      <Tooltip content={`Repo type: ${label}`} position="top">
+        <Badge variant={variant} className="uppercase tracking-wide">
+          {label}
+        </Badge>
+      </Tooltip>
     );
   };
 
@@ -864,15 +906,16 @@ export const JobsList = () => {
                 </div>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setRunNowNotice(null)}
-              title="Dismiss"
-              className="hover:bg-white dark:hover:bg-gray-700"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <Tooltip content="Dismiss" position="left">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRunNowNotice(null)}
+                className="hover:bg-white dark:hover:bg-gray-700"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -895,17 +938,18 @@ export const JobsList = () => {
           </div>
           <div className="flex items-center gap-3">
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-indigo-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80"
-                  title="Choose visible columns"
-                >
-                  <Columns className="mr-2 h-4 w-4" />
-                  Columns
-                </Button>
-              </DropdownMenuTrigger>
+              <Tooltip content="Choose visible columns" position="top">
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-indigo-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80"
+                  >
+                    <Columns className="mr-2 h-4 w-4" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+              </Tooltip>
               <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700">
                 <DropdownMenuCheckboxItem
                   checked={Boolean(columnsPref.pic_team)}
@@ -1099,7 +1143,9 @@ export const JobsList = () => {
                   {columnsPref.pic_team && (
                     <TableCell>
                       {job.pic_team ? (
-                        <span title={job.pic_team}>{picTeamLabelBySlug.get(job.pic_team) || job.pic_team}</span>
+                        <Tooltip content={job.pic_team} position="top">
+                          <span>{picTeamLabelBySlug.get(job.pic_team) || job.pic_team}</span>
+                        </Tooltip>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -1131,7 +1177,15 @@ export const JobsList = () => {
                   )}
                   {columnsPref.target_url && (
                     <TableCell className="text-sm truncate max-w-xs">
-                      {job.target_url || job.github_workflow_name || '-'}
+                      {(() => {
+                        const target = getJobTargetDisplay(job);
+                        if (!target) return '-';
+                        return (
+                          <Tooltip content={target} position="top">
+                            <span className="block truncate">{target}</span>
+                          </Tooltip>
+                        );
+                      })()}
                     </TableCell>
                   )}
                   {columnsPref.last_execution_at && <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>}
@@ -1146,43 +1200,47 @@ export const JobsList = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleToggleStatus(job.id, job.is_active)}
-                        title={job.is_active ? 'Disable' : 'Enable'}
-                      >
-                        {job.is_active ? (
-                          <PowerOff className="h-4 w-4 text-red-500" />
-                        ) : (
-                          <Power className="h-4 w-4 text-green-500" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleExecute(job.id)}
-                        title="Run Now"
-                      >
-                        <Play className={job.is_active ? 'h-4 w-4 text-green-600' : 'h-4 w-4 text-muted-foreground'} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate(`/jobs/${job.id}/edit`)}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4 text-amber-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(job.id)}
-                        disabled={deletingId === job.id}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                      <Tooltip content={job.is_active ? 'Disable' : 'Enable'} position="top">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleToggleStatus(job.id, job.is_active)}
+                        >
+                          {job.is_active ? (
+                            <PowerOff className="h-4 w-4 text-red-500" />
+                          ) : (
+                            <Power className="h-4 w-4 text-green-500" />
+                          )}
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Run Now" position="top">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleExecute(job.id)}
+                        >
+                          <Play className={job.is_active ? 'h-4 w-4 text-green-600' : 'h-4 w-4 text-muted-foreground'} />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Edit" position="top">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/jobs/${job.id}/edit`)}
+                        >
+                          <Pencil className="h-4 w-4 text-amber-500" />
+                        </Button>
+                      </Tooltip>
+                      <Tooltip content="Delete" position="top">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(job.id)}
+                          disabled={deletingId === job.id}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </Tooltip>
                     </div>
                   </TableCell>
                 </TableRow>

@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -22,6 +23,13 @@ const statusBadgeVariant = (status: JobExecution['status']) => {
   return 'secondary';
 };
 
+const formatDateJst = (dateString?: string) => {
+  if (!dateString) return '-';
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
+};
+
 export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Props) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md overflow-hidden bg-white dark:bg-gray-800">
@@ -42,16 +50,17 @@ export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Pro
             <TableRow key={e.id}>
               <TableCell className="font-medium">
                 {e.job_name || e.job_id ? (
-                  <button
-                    type="button"
-                    className="text-left hover:underline underline-offset-4"
-                    onClick={() => {
-                      if (e.job_id) onDrilldownJob(e.job_id);
-                    }}
-                    title="Show executions for this job"
-                  >
-                    {e.job_name || e.job_id}
-                  </button>
+                  <Tooltip content="Show executions for this job" position="top">
+                    <button
+                      type="button"
+                      className="text-left hover:underline underline-offset-4"
+                      onClick={() => {
+                        if (e.job_id) onDrilldownJob(e.job_id);
+                      }}
+                    >
+                      {e.job_name || e.job_id}
+                    </button>
+                  </Tooltip>
                 ) : (
                   '-'
                 )}
@@ -61,13 +70,18 @@ export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Pro
               </TableCell>
               <TableCell className="text-sm">{e.trigger_type}</TableCell>
               <TableCell className="text-sm">
-                {e.started_at ? new Date(e.started_at).toLocaleString() : '-'}
+                {formatDateJst(e.started_at)}
+                <span className="ml-1 text-[11px] text-muted-foreground">JST</span>
               </TableCell>
               <TableCell className="text-sm">
                 {typeof e.duration_seconds === 'number' ? `${e.duration_seconds.toFixed(1)}s` : '-'}
               </TableCell>
-              <TableCell className="text-sm max-w-[320px] truncate" title={e.target || ''}>
-                {e.target || '-'}
+              <TableCell className="text-sm max-w-[320px]">
+                {e.target ? (
+                  <Tooltip content={e.target} position="top">
+                    <span className="block truncate">{e.target}</span>
+                  </Tooltip>
+                ) : '-'}
               </TableCell>
               <TableCell className="text-right">
                 <Button

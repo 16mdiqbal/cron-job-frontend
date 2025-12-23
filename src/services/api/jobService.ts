@@ -63,7 +63,7 @@ export type BulkUploadJobsResult = {
   };
   created_count: number;
   error_count: number;
-  errors: Array<{ row?: number; job_name?: string; error: string; message?: string }>;
+  errors: Array<{ row?: number; job_name?: string; error: string; message?: string; pic_team?: string; pic_team_slug?: string }>;
   jobs: Array<{ id?: string; name: string; is_active?: boolean; cron_expression?: string }>;
 };
 

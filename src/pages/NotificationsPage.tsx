@@ -3,6 +3,8 @@ import { Bell, Check, CheckCheck, RefreshCcw, Trash2 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 
+import { PageTransition } from '@/components/ui/page-transition';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -99,6 +101,7 @@ export const NotificationsPage = () => {
   const readCountOnPage = useMemo(() => notifications.filter((n) => n.is_read).length, [notifications]);
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
         <div className="flex items-start justify-between gap-4">
@@ -273,18 +276,21 @@ export const NotificationsPage = () => {
                         {(notification.related_job_id || notification.related_execution_id) && (
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             {notification.related_job_id && (
-                              <Link
-                                to={`/jobs/${notification.related_job_id}/edit`}
-                                onClick={(e) => e.stopPropagation()}
-                                title={`Open job ${notification.related_job_id}`}
-                              >
-                                <Badge variant="secondary" className="hover:bg-accent">
-                                  Job
-                                </Badge>
-                              </Link>
+                              <Tooltip content={`Open job ${notification.related_job_id}`} position="top">
+                                <Link
+                                  to={`/jobs/${notification.related_job_id}/edit`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Badge variant="secondary" className="hover:bg-accent">
+                                    Job
+                                  </Badge>
+                                </Link>
+                              </Tooltip>
                             )}
                             {notification.related_execution_id && (
-                              <Badge variant="secondary" title={notification.related_execution_id ?? undefined}>Execution</Badge>
+                              <Tooltip content={notification.related_execution_id} position="top">
+                                <Badge variant="secondary">Execution</Badge>
+                              </Tooltip>
                             )}
                           </div>
                         )}
@@ -348,6 +354,7 @@ export const NotificationsPage = () => {
         </CardContent>
       </Card>
     </div>
+    </PageTransition>
   );
 };
 

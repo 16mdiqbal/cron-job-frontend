@@ -19,47 +19,63 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     { className, variant = 'default', size = 'default', loading, loadingText, loadingMinMs = 0, disabled, children, ...props },
     ref
   ) => {
-    const [showLoading, setShowLoading] = React.useState(false);
+    const [extendLoading, setExtendLoading] = React.useState(false);
     const startedAtRef = React.useRef<number | null>(null);
 
+    // Track when loading starts
     React.useEffect(() => {
-      const minMs = Math.max(0, Number(loadingMinMs) || 0);
       if (loading) {
         startedAtRef.current = Date.now();
-        setShowLoading(true);
+      }
+    }, [loading]);
+
+    // Handle minimum display time when loading ends
+    React.useEffect(() => {
+      if (loading) {
+        setExtendLoading(false);
         return;
       }
 
-      if (!showLoading) return;
-      const startedAt = startedAtRef.current || Date.now();
-      const elapsed = Date.now() - startedAt;
+      const minMs = Math.max(0, Number(loadingMinMs) || 0);
+      if (minMs === 0 || !startedAtRef.current) {
+        return;
+      }
+
+      const elapsed = Date.now() - startedAtRef.current;
       const remaining = minMs - elapsed;
+      
       if (remaining <= 0) {
-        setShowLoading(false);
         startedAtRef.current = null;
         return;
       }
 
-      const t = window.setTimeout(() => {
-        setShowLoading(false);
+      // Extend loading display
+      setExtendLoading(true);
+      const t = globalThis.setTimeout(() => {
+        setExtendLoading(false);
         startedAtRef.current = null;
       }, remaining);
-      return () => window.clearTimeout(t);
-    }, [loading, loadingMinMs, showLoading]);
+      return () => globalThis.clearTimeout(t);
+    }, [loading, loadingMinMs]);
 
-    const isLoading = Boolean(showLoading);
+    // Show loading immediately when prop is true, or extended after it ends
+    const isLoading = Boolean(loading || extendLoading);
     const content = isLoading && loadingText ? loadingText : children;
     return (
       <button
         className={cn(
-          'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+          'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background',
+          'transition-all duration-150 ease-out',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'disabled:pointer-events-none disabled:opacity-50',
+          'active:scale-[0.97] active:transition-none',
           {
-            'bg-primary text-primary-foreground hover:bg-primary/90': variant === 'default',
-            'bg-destructive text-destructive-foreground hover:bg-destructive/90':
+            'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md': variant === 'default',
+            'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:shadow-md':
               variant === 'destructive',
-            'border border-input bg-background hover:bg-accent hover:text-accent-foreground':
+            'border border-input bg-background hover:bg-accent hover:text-accent-foreground hover:shadow-sm':
               variant === 'outline',
-            'bg-secondary text-secondary-foreground hover:bg-secondary/80': variant === 'secondary',
+            'bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-sm': variant === 'secondary',
             'hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
             'text-primary underline-offset-4 hover:underline': variant === 'link',
           },

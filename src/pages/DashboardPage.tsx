@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { PageTransition } from '@/components/ui/page-transition';
 
 export const DashboardPage = () => {
   const { user } = useAuthStore();
@@ -138,8 +139,9 @@ export const DashboardPage = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+    <PageTransition>
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
@@ -377,7 +379,8 @@ export const DashboardPage = () => {
           </ul>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </PageTransition>
   );
 };
 

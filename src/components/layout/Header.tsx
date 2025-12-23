@@ -5,6 +5,7 @@ import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
 import { Menu, Clock, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { applyTheme, getInitialTheme, setStoredTheme, toggleTheme, type ThemeMode } from '@/services/utils/theme';
 import { QuickActionsMenu } from '@/components/layout/QuickActionsMenu';
 import { getTokenExpiryMs } from '@/services/utils/jwt';
@@ -109,20 +110,21 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         <div className="flex items-center space-x-4">
           <QuickActionsMenu />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              const next = toggleTheme(theme);
-              setTheme(next);
-              setStoredTheme(next);
-              applyTheme(next);
-            }}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
-          >
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
+          <Tooltip content={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} position="bottom">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                const next = toggleTheme(theme);
+                setTheme(next);
+                setStoredTheme(next);
+                applyTheme(next);
+              }}
+              className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+            >
+              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+          </Tooltip>
 
           {/* Notifications */}
           <NotificationsDropdown />

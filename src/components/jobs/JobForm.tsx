@@ -373,7 +373,7 @@ export const JobForm = () => {
               <h3 className="text-lg font-medium">Job Configuration</h3>
               
               <div className="space-y-2">
-                <Label htmlFor="name">Job Name *</Label>
+                <Label htmlFor="name">Job Name <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                 <Input
                   id="name"
                   placeholder="e.g., Daily Report Generation"
@@ -386,7 +386,7 @@ export const JobForm = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cron_expression">Cron Expression *</Label>
+                <Label htmlFor="cron_expression">Cron Expression <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                 <div className="rounded-xl border border-indigo-200 dark:border-gray-700 bg-indigo-50/60 dark:bg-indigo-950/20 p-3">
                   <div className="text-sm text-indigo-900 dark:text-indigo-100">
                     <span className="font-semibold">Format:</span>{' '}
@@ -505,7 +505,7 @@ export const JobForm = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="end_date">End Date (JST) *</Label>
+                  <Label htmlFor="end_date">End Date (JST) <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                   <Input
                     id="end_date"
                     type="date"
@@ -518,7 +518,7 @@ export const JobForm = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="pic_team">PIC Team *</Label>
+                  <Label htmlFor="pic_team">PIC Team <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                   <Select
                     id="pic_team"
                     error={errors.pic_team?.message}
@@ -576,7 +576,7 @@ export const JobForm = () => {
               <h3 className="text-lg font-medium">GitHub Actions Configuration</h3>
               
               <div className="space-y-2">
-                <Label htmlFor="github_owner">GitHub Owner *</Label>
+                <Label htmlFor="github_owner">GitHub Owner <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                 <Input
                   id="github_owner"
                   placeholder="e.g., myorganization"
@@ -592,7 +592,7 @@ export const JobForm = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="github_repo">Repository *</Label>
+                <Label htmlFor="github_repo">Repository <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                 <Select
                   id="github_repo"
                   value={github_repo}
@@ -609,7 +609,7 @@ export const JobForm = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="github_workflow_name">Workflow Name *</Label>
+                <Label htmlFor="github_workflow_name">Workflow Name <span className="text-rose-600 dark:text-rose-400">*</span></Label>
                 <Input
                   id="github_workflow_name"
                   placeholder="e.g., deploy.yml"
@@ -628,7 +628,7 @@ export const JobForm = () => {
             {/* Metadata Configuration */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Metadata *</h3>
+                <h3 className="text-lg font-medium">Metadata <span className="text-rose-600 dark:text-rose-400">*</span></h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -686,8 +686,9 @@ export const JobForm = () => {
                 type="submit"
                 loading={isLoading || saving}
                 loadingText={isEditMode ? 'Updating…' : 'Creating…'}
-                loadingMinMs={400}
+                loadingMinMs={600}
                 disabled={isLoading || saving}
+                className="min-w-[120px]"
               >
                 {isEditMode ? 'Update Job' : 'Create Job'}
               </Button>

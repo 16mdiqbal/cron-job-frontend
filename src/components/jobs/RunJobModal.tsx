@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, Plus, Trash2, X, Play } from 'lucide-react';
 import type { Job } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
@@ -331,9 +332,11 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
               </div>
               <div className="text-sm text-muted-foreground">{job.name}</div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} title="Close">
-              <X className="h-4 w-4" />
-            </Button>
+            <Tooltip content="Close" position="left">
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="h-4 w-4" />
+              </Button>
+            </Tooltip>
           </div>
 
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
@@ -438,18 +441,19 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
                           }
                           placeholder="value"
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setMetadataNotice(null);
-                            setMetadataRows((prev) => prev.filter((_, i) => i !== idx));
-                          }}
-                          title="Remove"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <Tooltip content="Remove" position="top">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setMetadataNotice(null);
+                              setMetadataRows((prev) => prev.filter((_, i) => i !== idx));
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </Tooltip>
                       </div>
                     ))}
                   </div>
@@ -473,19 +477,20 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
                     <Plus className="mr-2 h-4 w-4" />
                     Add field
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setMetadataNotice(null);
-                      const split = splitMetadata(initialMetadata);
-                      setMetadataRows(split.rows);
-                    }}
-                    className="text-muted-foreground"
-                    title="Reset to default metadata"
-                  >
-                    Reset
-                  </Button>
+                  <Tooltip content="Reset to default metadata" position="top">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setMetadataNotice(null);
+                        const split = splitMetadata(initialMetadata);
+                        setMetadataRows(split.rows);
+                      }}
+                      className="text-muted-foreground"
+                    >
+                      Reset
+                    </Button>
+                  </Tooltip>
                 </div>
 
                 <div className="text-xs text-muted-foreground">
@@ -505,10 +510,12 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
             <Button variant="outline" onClick={onClose} disabled={running}>
               Cancel
             </Button>
-            <Button onClick={handleRun} disabled={running || !job.is_active} title={!job.is_active ? 'Enable job to run now' : undefined}>
-              <Play className="mr-2 h-4 w-4" />
-              {running ? 'Running…' : 'Run now'}
-            </Button>
+            <Tooltip content={job.is_active ? '' : 'Enable job to run now'} position="top">
+              <Button onClick={handleRun} disabled={running || !job.is_active}>
+                <Play className="mr-2 h-4 w-4" />
+                {running ? 'Running…' : 'Run now'}
+              </Button>
+            </Tooltip>
           </div>
         </div>
       </div>
