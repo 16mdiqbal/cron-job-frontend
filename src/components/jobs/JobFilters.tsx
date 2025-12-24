@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -22,32 +22,34 @@ export const JobFilters = ({ onFilterChange, initialStatus, picTeams }: JobFilte
   const [picTeam, setPicTeam] = useState<string>('all');
   const didMountRef = useRef(false);
 
-  useEffect(() => {
-    if (!initialStatus) return;
-    setStatus(initialStatus);
-  }, [initialStatus]);
+  const buildAndApplyFilters = useCallback(
+    (
+      currentSearch?: string,
+      currentStatus?: string,
+      currentRepo?: string,
+      currentPicTeam?: string
+    ) => {
+      const filters: {
+        search?: string;
+        is_active?: boolean;
+        github_repo?: 'api' | 'mobile' | 'web';
+        pic_team?: string;
+      } = {};
 
-  const buildAndApplyFilters = (
-    currentSearch?: string,
-    currentStatus?: string,
-    currentRepo?: string,
-    currentPicTeam?: string
-  ) => {
-    const filters: { search?: string; is_active?: boolean; github_repo?: 'api' | 'mobile' | 'web'; pic_team?: string } =
-      {};
+      const searchVal = currentSearch !== undefined ? currentSearch : search;
+      const statusVal = currentStatus !== undefined ? currentStatus : status;
+      const repoVal = currentRepo !== undefined ? currentRepo : repository;
+      const picTeamVal = currentPicTeam !== undefined ? currentPicTeam : picTeam;
 
-    const searchVal = currentSearch !== undefined ? currentSearch : search;
-    const statusVal = currentStatus !== undefined ? currentStatus : status;
-    const repoVal = currentRepo !== undefined ? currentRepo : repository;
-    const picTeamVal = currentPicTeam !== undefined ? currentPicTeam : picTeam;
+      if (searchVal) filters.search = searchVal;
+      if (statusVal !== 'all') filters.is_active = statusVal === 'active';
+      if (repoVal !== 'all') filters.github_repo = repoVal as 'api' | 'mobile' | 'web';
+      if (picTeamVal !== 'all') filters.pic_team = picTeamVal;
 
-    if (searchVal) filters.search = searchVal;
-    if (statusVal !== 'all') filters.is_active = statusVal === 'active';
-    if (repoVal !== 'all') filters.github_repo = repoVal as 'api' | 'mobile' | 'web';
-    if (picTeamVal !== 'all') filters.pic_team = picTeamVal;
-
-    onFilterChange(filters);
-  };
+      onFilterChange(filters);
+    },
+    [onFilterChange, picTeam, repository, search, status]
+  );
 
   const handleApplyFilters = () => {
     buildAndApplyFilters();
@@ -65,7 +67,7 @@ export const JobFilters = ({ onFilterChange, initialStatus, picTeams }: JobFilte
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [search]);
+  }, [search, buildAndApplyFilters]);
 
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus);

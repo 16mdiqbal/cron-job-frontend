@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Upload, X, Download, FileText } from 'lucide-react';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { normalizeCsvRows, parseCsvText, stringifyCsv } from '@/services/utils/csv';
 import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
 import { useJobStore } from '@/stores/jobStore';
+import { getErrorMessage } from '@/services/utils/error';
 
 type Props = {
   onClose: () => void;
@@ -43,7 +52,10 @@ function findHeaderIndex(headers: string[], candidates: string[]): number {
   return normalized.findIndex((h) => candidateSet.has(h));
 }
 
-function validateBulkUploadTable(table: { headers: string[]; rows: string[][] }): BulkUploadError[] {
+function validateBulkUploadTable(table: {
+  headers: string[];
+  rows: string[][];
+}): BulkUploadError[] {
   const errors: BulkUploadError[] = [];
   const headers = table.headers ?? [];
 
@@ -55,7 +67,12 @@ function validateBulkUploadTable(table: { headers: string[]; rows: string[][] })
     'cron_expression',
   ]);
   const endDateIndex = findHeaderIndex(headers, ['end date', 'end_date']);
-  const picTeamIndex = findHeaderIndex(headers, ['pic team', 'pic_team', 'pic team slug', 'pic_team_slug']);
+  const picTeamIndex = findHeaderIndex(headers, [
+    'pic team',
+    'pic_team',
+    'pic team slug',
+    'pic_team_slug',
+  ]);
   const targetUrlIndex = findHeaderIndex(headers, ['target url', 'target_url', 'url']);
   const repoIndex = findHeaderIndex(headers, ['repo', 'github repo', 'github_repo']);
   const workflowIndex = findHeaderIndex(headers, [
@@ -67,9 +84,14 @@ function validateBulkUploadTable(table: { headers: string[]; rows: string[][] })
   const missingColumns: Array<{ key: string; candidates: string[] }> = [];
   if (nameIndex < 0) missingColumns.push({ key: 'name', candidates: ['Job Name', 'name'] });
   if (cronIndex < 0)
-    missingColumns.push({ key: 'cron_expression', candidates: ['Cron schedule (JST)', 'cron_expression'] });
-  if (endDateIndex < 0) missingColumns.push({ key: 'end_date', candidates: ['End Date', 'end_date'] });
-  if (picTeamIndex < 0) missingColumns.push({ key: 'pic_team', candidates: ['PIC Team', 'pic_team'] });
+    missingColumns.push({
+      key: 'cron_expression',
+      candidates: ['Cron schedule (JST)', 'cron_expression'],
+    });
+  if (endDateIndex < 0)
+    missingColumns.push({ key: 'end_date', candidates: ['End Date', 'end_date'] });
+  if (picTeamIndex < 0)
+    missingColumns.push({ key: 'pic_team', candidates: ['PIC Team', 'pic_team'] });
 
   if (missingColumns.length > 0) {
     for (const col of missingColumns) {
@@ -88,17 +110,32 @@ function validateBulkUploadTable(table: { headers: string[]; rows: string[][] })
 
     const cron = (row[cronIndex] ?? '').trim();
     if (!cron) {
-      errors.push({ row: rowNo, job_name: jobName, error: 'Missing required fields', message: 'cron_expression is required.' });
+      errors.push({
+        row: rowNo,
+        job_name: jobName,
+        error: 'Missing required fields',
+        message: 'cron_expression is required.',
+      });
     }
 
     const endDate = (row[endDateIndex] ?? '').trim();
     if (!endDate) {
-      errors.push({ row: rowNo, job_name: jobName, error: 'Missing required fields', message: 'end_date (YYYY-MM-DD) is required.' });
+      errors.push({
+        row: rowNo,
+        job_name: jobName,
+        error: 'Missing required fields',
+        message: 'end_date (YYYY-MM-DD) is required.',
+      });
     }
 
     const picTeam = (row[picTeamIndex] ?? '').trim();
     if (!picTeam) {
-      errors.push({ row: rowNo, job_name: jobName, error: 'Missing required fields', message: 'pic_team is required.' });
+      errors.push({
+        row: rowNo,
+        job_name: jobName,
+        error: 'Missing required fields',
+        message: 'pic_team is required.',
+      });
     }
 
     const targetUrl = targetUrlIndex >= 0 ? (row[targetUrlIndex] ?? '').trim() : '';
@@ -173,7 +210,10 @@ export function BulkUploadJobsCard({ onClose }: Props) {
   const clientValidationErrors = preview ? validateBulkUploadTable(preview) : [];
   const isTotalFailure = uploadResult?.createdCount === 0 && (uploadResult?.errorCount ?? 0) > 0;
 
-  const knownTeamSlugs = useMemo(() => new Set((knownTeams ?? []).map((t) => t.slug)), [knownTeams]);
+  const knownTeamSlugs = useMemo(
+    () => new Set((knownTeams ?? []).map((t) => t.slug)),
+    [knownTeams]
+  );
   const knownTeamNames = useMemo(
     () => new Set((knownTeams ?? []).map((t) => t.name.trim().toLowerCase())),
     [knownTeams]
@@ -183,7 +223,10 @@ export function BulkUploadJobsCard({ onClose }: Props) {
     [knownTeams]
   );
   const inactiveTeamNames = useMemo(
-    () => new Set((knownTeams ?? []).filter((t) => !t.is_active).map((t) => t.name.trim().toLowerCase())),
+    () =>
+      new Set(
+        (knownTeams ?? []).filter((t) => !t.is_active).map((t) => t.name.trim().toLowerCase())
+      ),
     [knownTeams]
   );
 
@@ -191,7 +234,12 @@ export function BulkUploadJobsCard({ onClose }: Props) {
     if (!preview || !knownTeams) return [];
 
     const headers = preview.headers ?? [];
-    const picTeamIndex = findHeaderIndex(headers, ['pic team', 'pic_team', 'pic team slug', 'pic_team_slug']);
+    const picTeamIndex = findHeaderIndex(headers, [
+      'pic team',
+      'pic_team',
+      'pic team slug',
+      'pic_team_slug',
+    ]);
     const nameIndex = findHeaderIndex(headers, ['job name', 'name']);
     if (picTeamIndex < 0) return [];
 
@@ -211,7 +259,8 @@ export function BulkUploadJobsCard({ onClose }: Props) {
       const bySlug = knownTeamSlugs.has(slug);
       const byName = knownTeamNames.has(raw.trim().toLowerCase());
       const exists = bySlug || byName;
-      const inactive = inactiveTeamSlugs.has(slug) || inactiveTeamNames.has(raw.trim().toLowerCase());
+      const inactive =
+        inactiveTeamSlugs.has(slug) || inactiveTeamNames.has(raw.trim().toLowerCase());
 
       if (!exists) {
         out.push({
@@ -239,7 +288,11 @@ export function BulkUploadJobsCard({ onClose }: Props) {
   const aggregatedMissingTeams = useMemo(() => {
     const errors = uploadResult?.errors ?? [];
     const unknown = errors.filter(
-      (e) => e.error === 'Invalid PIC team' && String(e.message || '').toLowerCase().includes('unknown pic team')
+      (e) =>
+        e.error === 'Invalid PIC team' &&
+        String(e.message || '')
+          .toLowerCase()
+          .includes('unknown pic team')
     );
     const values = new Set<string>();
     for (const e of unknown) {
@@ -291,7 +344,8 @@ export function BulkUploadJobsCard({ onClose }: Props) {
             </CardTitle>
             <CardDescription>
               CSV is normalized on the client by removing empty rows and dropping columns without a
-              header. Required columns: <code>name</code>, <code>cron_expression</code>, <code>end_date</code> (YYYY-MM-DD), <code>pic_team</code>.
+              header. Required columns: <code>name</code>, <code>cron_expression</code>,{' '}
+              <code>end_date</code> (YYYY-MM-DD), <code>pic_team</code>.
             </CardDescription>
           </div>
           <Tooltip content="Close" position="left">
@@ -378,7 +432,9 @@ export function BulkUploadJobsCard({ onClose }: Props) {
             {normalized.error}
           </div>
         )}
-        {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+        {error && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+        )}
 
         {uploadResult && (
           <div
@@ -398,12 +454,16 @@ export function BulkUploadJobsCard({ onClose }: Props) {
                   <div className="rounded-md bg-background/60 p-2 text-xs text-muted-foreground">
                     {aggregatedMissingTeams.length > 0 && (
                       <div>
-                        Unknown PIC teams: <span className="font-medium">{aggregatedMissingTeams.join(', ')}</span>. Create them in Settings → PIC Teams.
+                        Unknown PIC teams:{' '}
+                        <span className="font-medium">{aggregatedMissingTeams.join(', ')}</span>.
+                        Create them in Settings → PIC Teams.
                       </div>
                     )}
                     {aggregatedDuplicateNames > 0 && (
                       <div>
-                        Duplicate job names in this CSV: <span className="font-medium">{aggregatedDuplicateNames}</span> row(s). Job names must be unique.
+                        Duplicate job names in this CSV:{' '}
+                        <span className="font-medium">{aggregatedDuplicateNames}</span> row(s). Job
+                        names must be unique.
                       </div>
                     )}
                   </div>
@@ -537,18 +597,25 @@ export function BulkUploadJobsCard({ onClose }: Props) {
                   errorCount: result.error_count ?? 0,
                   errors: result.errors ?? [],
                 });
-              } catch (e: any) {
-                const payload = e?.response?.data;
-                if (payload && typeof payload === 'object') {
-                  const createdCount = payload.created_count ?? 0;
-                  const errorCount = payload.error_count ?? 0;
-                  const errors = payload.errors ?? [];
-                  if (Array.isArray(errors)) {
-                    setUploadResult({ createdCount, errorCount, errors });
-                  }
-                  setError(payload.message || payload.error || e?.message || 'Failed to upload.');
+              } catch (e: unknown) {
+                const payload = axios.isAxiosError(e) ? e.response?.data : undefined;
+
+                if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+                  const obj = payload as Record<string, unknown>;
+                  const createdCount =
+                    typeof obj.created_count === 'number' ? obj.created_count : 0;
+                  const errorCount = typeof obj.error_count === 'number' ? obj.error_count : 0;
+                  const errorsRaw = obj.errors;
+                  const errors = Array.isArray(errorsRaw) ? (errorsRaw as BulkUploadError[]) : [];
+                  setUploadResult({ createdCount, errorCount, errors });
+
+                  const message =
+                    (typeof obj.message === 'string' && obj.message) ||
+                    (typeof obj.error === 'string' && obj.error) ||
+                    getErrorMessage(e, 'Failed to upload.');
+                  setError(message);
                 } else {
-                  setError(e?.message || 'Failed to upload.');
+                  setError(getErrorMessage(e, 'Failed to upload.'));
                 }
               } finally {
                 setUploading(false);

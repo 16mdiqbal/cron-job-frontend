@@ -55,7 +55,7 @@ export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Pro
                       type="button"
                       className="text-left hover:underline underline-offset-4"
                       onClick={() => {
-                        if (e.job_id) onDrilldownJob(e.job_id);
+                        if (e.job_id && onDrilldownJob) onDrilldownJob(e.job_id);
                       }}
                     >
                       {e.job_name || e.job_id}
@@ -81,7 +81,9 @@ export function ExecutionList({ executions, onViewDetails, onDrilldownJob }: Pro
                   <Tooltip content={e.target} position="top">
                     <span className="block truncate">{e.target}</span>
                   </Tooltip>
-                ) : '-'}
+                ) : (
+                  '-'
+                )}
               </TableCell>
               <TableCell className="text-right">
                 <Button

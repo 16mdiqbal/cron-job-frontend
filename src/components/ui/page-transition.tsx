@@ -11,16 +11,7 @@ interface PageTransitionProps {
  * Wrap your page content with this component for a polished page load experience.
  */
 export const PageTransition: React.FC<PageTransitionProps> = ({ children, className }) => {
-  return (
-    <div
-      className={cn(
-        'animate-page-in',
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
+  return <div className={cn('animate-page-in', className)}>{children}</div>;
 };
 
 PageTransition.displayName = 'PageTransition';

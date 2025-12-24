@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,12 +22,6 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
   const { createUser, isLoading, error } = useUserStore();
   const [formData, setFormData] = useState<CreateUserRequest>(initialFormState);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  // Reset form data when component mounts
-  useEffect(() => {
-    setFormData(initialFormState);
-    setFormErrors({});
-  }, []);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -102,9 +96,7 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
                 disabled={isLoading}
                 autoComplete="off"
               />
-              {formErrors.username && (
-                <p className="text-sm text-red-600">{formErrors.username}</p>
-              )}
+              {formErrors.username && <p className="text-sm text-red-600">{formErrors.username}</p>}
             </div>
 
             {/* Email */}
@@ -142,9 +134,7 @@ export const UserCreateForm = ({ onClose, onSuccess }: UserFormProps) => {
                 disabled={isLoading}
                 autoComplete="new-password"
               />
-              {formErrors.password && (
-                <p className="text-sm text-red-600">{formErrors.password}</p>
-              )}
+              {formErrors.password && <p className="text-sm text-red-600">{formErrors.password}</p>}
             </div>
 
             {/* Role */}

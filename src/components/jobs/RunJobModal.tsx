@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 
 import { createPortal } from 'react-dom';
 import { AlertCircle, Plus, Trash2, X, Play } from 'lucide-react';
 import type { Job } from '@/types';
+import type { JsonObject, JsonValue } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { getErrorMessage } from '@/services/utils/error';
 
 type Props = {
   job: Job;
@@ -16,7 +18,7 @@ type Props = {
     dispatch_url?: string;
   };
   onRun: (payload: {
-    metadata?: Record<string, any>;
+    metadata?: JsonObject;
     target_url?: string;
     dispatch_url?: string;
     github_owner?: string;
@@ -26,7 +28,8 @@ type Props = {
   }) => Promise<void>;
 };
 
-const isGithubJob = (job: Job) => Boolean(job.github_owner && job.github_repo && job.github_workflow_name);
+const isGithubJob = (job: Job) =>
+  Boolean(job.github_owner && job.github_repo && job.github_workflow_name);
 
 const getRepoType = (job: Job): 'api' | 'web' | 'mobile' | null => {
   const repo = job.github_repo?.toLowerCase();
@@ -43,7 +46,7 @@ type MetadataRow = { key: string; value: string };
 const MAX_METADATA_FIELDS = 10;
 
 const splitMetadata = (
-  metadata: Record<string, any> | undefined
+  metadata: JsonObject | undefined
 ): { rows: MetadataRow[]; compositeText: string } => {
   if (!metadata) return { rows: [], compositeText: '' };
 
@@ -62,7 +65,7 @@ const splitMetadata = (
     value: typeof value === 'string' ? value : JSON.stringify(value),
   }));
 
-  const compositeObj: Record<string, any> = {};
+  const compositeObj: Record<string, JsonValue> = {};
 
   if (compositeEntry) {
     const [, compositeValue] = compositeEntry;
@@ -70,9 +73,9 @@ const splitMetadata = (
       Object.assign(compositeObj, compositeValue);
     } else if (typeof compositeValue === 'string' && compositeValue.trim().startsWith('{')) {
       try {
-        const parsed = JSON.parse(compositeValue);
+        const parsed: unknown = JSON.parse(compositeValue);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          Object.assign(compositeObj, parsed);
+          Object.assign(compositeObj, parsed as Record<string, JsonValue>);
         }
       } catch {
         // ignore parse errors here; user can fix at runtime
@@ -84,7 +87,8 @@ const splitMetadata = (
     compositeObj[key] = value;
   }
 
-  const compositeText = Object.keys(compositeObj).length > 0 ? JSON.stringify(compositeObj, null, 2) : '';
+  const compositeText =
+    Object.keys(compositeObj).length > 0 ? JSON.stringify(compositeObj, null, 2) : '';
 
   if (compositeText) {
     rows.push({ key: 'composite', value: compositeText });
@@ -93,7 +97,7 @@ const splitMetadata = (
   return { rows: rows.slice(0, MAX_METADATA_FIELDS), compositeText };
 };
 
-const coerceValue = (raw: string): any => {
+const coerceValue = (raw: string): JsonValue => {
   const value = raw.trim();
   if (value === '') return '';
   if (value === 'true') return true;
@@ -101,7 +105,7 @@ const coerceValue = (raw: string): any => {
   if (value === 'null') return null;
   if (value.startsWith('{') || value.startsWith('[')) {
     try {
-      return JSON.parse(value);
+      return JSON.parse(value) as JsonValue;
     } catch {
       return raw;
     }
@@ -110,20 +114,23 @@ const coerceValue = (raw: string): any => {
   return raw;
 };
 
-const parseCompositeValue = (raw: string): Record<string, any> | undefined => {
+const parseCompositeValue = (raw: string): Record<string, JsonValue> | undefined => {
   const text = raw.trim();
   if (!text) return undefined;
 
   if (text.startsWith('{')) {
-    const parsed = JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       throw new Error('Composite value must be a JSON object.');
     }
-    return parsed as Record<string, any>;
+    return parsed as Record<string, JsonValue>;
   }
 
-  const result: Record<string, any> = {};
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const result: Record<string, JsonValue> = {};
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   for (const line of lines) {
     const idx = line.indexOf('=');
     if (idx === -1) {
@@ -137,8 +144,8 @@ const parseCompositeValue = (raw: string): Record<string, any> | undefined => {
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
-const rowsToMetadata = (rows: MetadataRow[]): Record<string, any> | undefined => {
-  const result: Record<string, any> = {};
+const rowsToMetadata = (rows: MetadataRow[]): Record<string, JsonValue> | undefined => {
+  const result: Record<string, JsonValue> = {};
   for (const row of rows) {
     const key = row.key.trim();
     if (!key) continue;
@@ -271,14 +278,14 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
 
   const handleRun = async () => {
     setError(null);
-    let metadata: Record<string, any> | undefined;
+    let metadata: Record<string, JsonValue> | undefined;
     try {
       metadata = rowsToMetadata(metadataRows);
-    } catch (e: any) {
-      setError(e?.message || 'Invalid metadata.');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Invalid metadata.'));
       return;
     }
-    const metadataPayload = Object.keys(metadata).length > 0 ? metadata : undefined;
+    const metadataPayload = Object.keys(metadata ?? {}).length > 0 ? metadata : undefined;
 
     setRunning(true);
     try {
@@ -302,8 +309,8 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
         });
       }
       onClose();
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to run job.');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to run job.'));
     } finally {
       setRunning(false);
     }
@@ -328,7 +335,12 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Run job now</h2>
-                <Badge variant={badgeVariant} className={github ? 'uppercase tracking-wide' : undefined}>{badgeLabel}</Badge>
+                <Badge
+                  variant={badgeVariant}
+                  className={github ? 'uppercase tracking-wide' : undefined}
+                >
+                  {badgeLabel}
+                </Badge>
               </div>
               <div className="text-sm text-muted-foreground">{job.name}</div>
             </div>
@@ -370,24 +382,29 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
                       onChange={(e) => setGithubToken(e.target.value)}
                       placeholder="ghp_..."
                     />
-                    <div className="text-xs text-muted-foreground mt-1">Used only for this run.</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Used only for this run.
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">GitHub owner</div>
-                  <Input value={githubOwner} onChange={(e) => setGithubOwner(e.target.value)} />
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">GitHub owner</div>
+                    <Input value={githubOwner} onChange={(e) => setGithubOwner(e.target.value)} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Repo</div>
+                    <Input value={githubRepo} onChange={(e) => setGithubRepo(e.target.value)} />
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">Workflow</div>
+                    <Input
+                      value={githubWorkflow}
+                      onChange={(e) => setGithubWorkflow(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Repo</div>
-                  <Input value={githubRepo} onChange={(e) => setGithubRepo(e.target.value)} />
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground mb-1">Workflow</div>
-                  <Input value={githubWorkflow} onChange={(e) => setGithubWorkflow(e.target.value)} />
-                </div>
-              </div>
               </div>
             ) : (
               <div>
@@ -404,7 +421,9 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
               <div className="rounded-md border border-input bg-background p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    Fields: <span className="font-medium text-foreground">{metadataRows.length}</span>/{MAX_METADATA_FIELDS}
+                    Fields:{' '}
+                    <span className="font-medium text-foreground">{metadataRows.length}</span>/
+                    {MAX_METADATA_FIELDS}
                   </div>
                 </div>
 
@@ -494,7 +513,8 @@ export function RunJobModal({ job, open, onClose, onRun, initial }: Props) {
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                  Values are auto-typed (numbers/booleans). For more than {MAX_METADATA_FIELDS} fields, use a field named <code>composite</code>.
+                  Values are auto-typed (numbers/booleans). For more than {MAX_METADATA_FIELDS}{' '}
+                  fields, use a field named <code>composite</code>.
                 </div>
               </div>
             </div>

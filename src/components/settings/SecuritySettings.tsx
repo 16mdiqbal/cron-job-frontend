@@ -6,13 +6,14 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/stores/authStore';
 import { userService } from '@/services/api/userService';
 import { Lock, Shield, Key } from 'lucide-react';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const SecuritySettings = () => {
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [passwords, setPasswords] = useState({
     currentPassword: '',
     newPassword: '',
@@ -49,7 +50,7 @@ export const SecuritySettings = () => {
         await userService.updateUser(user.id, {
           password: passwords.newPassword,
         });
-        
+
         setSuccess('Password changed successfully');
         setPasswords({
           currentPassword: '',
@@ -57,8 +58,8 @@ export const SecuritySettings = () => {
           confirmPassword: '',
         });
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Failed to change password');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to change password'));
     } finally {
       setIsLoading(false);
     }

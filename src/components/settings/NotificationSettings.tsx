@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Bell, Mail, CheckCircle, XCircle, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { getNotificationPreferences, updateNotificationPreferences } from '@/services/api/preferencesService';
+import {
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '@/services/api/preferencesService';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const NotificationSettings = () => {
   const { user } = useAuthStore();
@@ -21,20 +25,9 @@ export const NotificationSettings = () => {
     weeklyReport: false,
   });
 
-  useEffect(() => {
-    loadPreferences();
-  }, []);
-
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(null), 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [success]);
-
-  const loadPreferences = async () => {
+  const loadPreferences = useCallback(async () => {
     if (!user) return;
-    
+
     try {
       setIsFetching(true);
       const data = await getNotificationPreferences(user.id);
@@ -46,21 +39,32 @@ export const NotificationSettings = () => {
         dailyDigest: data.daily_digest,
         weeklyReport: data.weekly_report,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to load preferences:', err);
-      setError(err.response?.data?.error || 'Failed to load notification preferences');
+      setError(getErrorMessage(err, 'Failed to load notification preferences'));
     } finally {
       setIsFetching(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadPreferences();
+  }, [loadPreferences]);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   const handleSave = async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     setSuccess(null);
     setError(null);
-    
+
     try {
       await updateNotificationPreferences(user.id, {
         email_on_job_success: preferences.emailOnJobSuccess,
@@ -70,11 +74,11 @@ export const NotificationSettings = () => {
         daily_digest: preferences.dailyDigest,
         weekly_report: preferences.weeklyReport,
       });
-      
+
       setSuccess('Notification preferences saved successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to save preferences:', err);
-      setError(err.response?.data?.error || 'Failed to save notification preferences');
+      setError(getErrorMessage(err, 'Failed to save notification preferences'));
     } finally {
       setIsLoading(false);
     }
@@ -133,9 +137,7 @@ export const NotificationSettings = () => {
             <Mail className="h-5 w-5" />
             <CardTitle>Email Notifications</CardTitle>
           </div>
-          <CardDescription>
-            Configure when you want to receive email notifications
-          </CardDescription>
+          <CardDescription>Configure when you want to receive email notifications</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Job Success */}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
+import { getErrorMessage } from '@/services/utils/error';
 import { authService, type LoginRequest } from '@/services/api/authService';
 
 interface AuthState {
@@ -59,13 +60,10 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
         } catch (error: unknown) {
-          // Extract error message from backend response
-          const axiosError = error as any;
-          const errorMessage =
-            axiosError?.response?.data?.error ||
-            axiosError?.response?.data?.message ||
-            axiosError?.message ||
-            'Login failed. Please check your credentials and try again.';
+          const errorMessage = getErrorMessage(
+            error,
+            'Login failed. Please check your credentials and try again.'
+          );
           set({
             error: errorMessage,
             isLoading: false,

@@ -21,13 +21,28 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { JobFilters } from './JobFilters';
+import { JobFilters as JobFiltersPanel } from './JobFilters';
 import { Pagination } from './Pagination';
-import { AlertCircle, CheckCircle2, Download, Play, Pencil, Trash2, Plus, Power, PowerOff, Upload, X, ChevronUp, ChevronDown, Columns } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Download,
+  Play,
+  Pencil,
+  Trash2,
+  Plus,
+  Power,
+  PowerOff,
+  Upload,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Columns,
+} from 'lucide-react';
 import type { Job } from '@/types';
 import { BulkUploadJobsCard } from './BulkUploadJobsCard';
 import { RunJobModal } from './RunJobModal';
-import { jobService } from '@/services/api/jobService';
+import { jobService, type JobFilters as JobFiltersQuery } from '@/services/api/jobService';
 import { stringifyCsv } from '@/services/utils/csv';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
 import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
@@ -45,7 +60,9 @@ const _githubWorkflowUrlFromParts = (owner: string, repo: string, workflow: stri
   const cleanedOwner = (owner || '').trim() || 'Pay-Baymax';
   const cleanedRepo = (repo || '').trim();
   const cleanedWorkflow = (workflow || '').trim();
-  const workflowFile = /\.(ya?ml)$/i.test(cleanedWorkflow) ? cleanedWorkflow : `${cleanedWorkflow}.yml`;
+  const workflowFile = /\.(ya?ml)$/i.test(cleanedWorkflow)
+    ? cleanedWorkflow
+    : `${cleanedWorkflow}.yml`;
   return `https://github.com/${cleanedOwner}/${cleanedRepo}/actions/workflows/${workflowFile}`;
 };
 
@@ -84,12 +101,13 @@ const applyClientSideFilters = (
 
   if (filters.search) {
     const searchLower = filters.search.toLowerCase();
-    filtered = filtered.filter((job) =>
-      job.name.toLowerCase().includes(searchLower) ||
-      (getJobTargetDisplay(job) || '').toLowerCase().includes(searchLower) ||
-      (job.github_owner || '').toLowerCase().includes(searchLower) ||
-      (job.github_repo || '').toLowerCase().includes(searchLower) ||
-      (job.github_workflow_name || '').toLowerCase().includes(searchLower)
+    filtered = filtered.filter(
+      (job) =>
+        job.name.toLowerCase().includes(searchLower) ||
+        (getJobTargetDisplay(job) || '').toLowerCase().includes(searchLower) ||
+        (job.github_owner || '').toLowerCase().includes(searchLower) ||
+        (job.github_repo || '').toLowerCase().includes(searchLower) ||
+        (job.github_workflow_name || '').toLowerCase().includes(searchLower)
     );
   }
 
@@ -115,7 +133,7 @@ const applyClientSideFilters = (
   }
 
   if (filters.pic_team) {
-    filtered = filtered.filter((job) => (job as any).pic_team === filters.pic_team);
+    filtered = filtered.filter((job) => job.pic_team === filters.pic_team);
   }
 
   return filtered;
@@ -127,7 +145,12 @@ export const JobsList = () => {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [needsNoNextRun, setNeedsNoNextRun] = useState(false);
   const [needsEndingSoon, setNeedsEndingSoon] = useState(false);
-  const [initialStatus, setInitialStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const initialStatus = useMemo<'all' | 'active' | 'inactive'>(() => {
+    const statusParam = (searchParams.get('status') || '').trim().toLowerCase();
+    if (statusParam === 'active') return 'active';
+    if (statusParam === 'inactive') return 'inactive';
+    return 'all';
+  }, [searchParams]);
   const { user } = useAuthStore();
   const {
     jobs,
@@ -166,9 +189,7 @@ export const JobsList = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [selectionScope, setSelectionScope] = useState<'page' | 'allMatching'>('page');
   const [runJob, setRunJob] = useState<Job | null>(null);
-  const [runNowNotice, setRunNowNotice] = useState<{ jobId: string; jobName: string } | null>(
-    null
-  );
+  const [runNowNotice, setRunNowNotice] = useState<{ jobId: string; jobName: string } | null>(null);
   const runNowNoticeTimeoutRef = useRef<number | null>(null);
   const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
 
@@ -256,20 +277,20 @@ export const JobsList = () => {
     const category = selected === 'all' ? undefined : selected;
     const isActive =
       statusParam === 'active' ? true : statusParam === 'inactive' ? false : undefined;
-    const nextSortBy =
+    const nextSortBy: JobFiltersQuery['sort_by'] =
       sortBy === 'name' || sortBy === 'repo' || sortBy === 'status' || sortBy === 'end_date'
         ? sortBy
         : undefined;
-    const nextSortDir = sortDir === 'desc' ? 'desc' : sortDir === 'asc' ? 'asc' : undefined;
+    const nextSortDir: JobFiltersQuery['sort_dir'] =
+      sortDir === 'desc' ? 'desc' : sortDir === 'asc' ? 'asc' : undefined;
     const nextNeedsNoNextRun = needsParam === 'no-next-run';
     const nextNeedsEndingSoon = needsParam === 'ending-soon';
     const nextLimit = nextNeedsNoNextRun || nextNeedsEndingSoon ? 100 : 10;
 
     setNeedsNoNextRun(nextNeedsNoNextRun);
     setNeedsEndingSoon(nextNeedsEndingSoon);
-    setInitialStatus(isActive === true ? 'active' : isActive === false ? 'inactive' : 'all');
 
-    const nextFilters = {
+    const nextFilters: JobFiltersQuery = {
       category,
       is_active: isActive,
       sort_by: nextSortBy,
@@ -279,8 +300,7 @@ export const JobsList = () => {
     };
 
     setFilters(nextFilters);
-    loadJobs(nextFilters)
-      .catch((err) => console.error('Failed to load jobs:', err));
+    loadJobs(nextFilters).catch((err) => console.error('Failed to load jobs:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -320,7 +340,9 @@ export const JobsList = () => {
   };
 
   const categoryTabs = useMemo(() => {
-    const active = categories.filter((c) => c.is_active).sort((a, b) => a.name.localeCompare(b.name));
+    const active = categories
+      .filter((c) => c.is_active)
+      .sort((a, b) => a.name.localeCompare(b.name));
     const base: Array<{ key: string; label: string; category?: string }> = [
       { key: 'all', label: 'All', category: undefined },
       { key: 'general', label: 'General', category: 'general' },
@@ -344,7 +366,7 @@ export const JobsList = () => {
       try {
         await deleteJob(id);
         // Small delay to ensure backend has created the notification
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         // Refresh notifications after deleting job
         await fetchUnreadCount();
         await fetchNotifications(1, 10, true);
@@ -360,7 +382,7 @@ export const JobsList = () => {
     try {
       await toggleJobStatus(id, !currentStatus);
       // Small delay to ensure backend has created the notification
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       // Refresh notifications after toggling job status
       await fetchUnreadCount();
       await fetchNotifications(1, 10, true);
@@ -399,7 +421,7 @@ export const JobsList = () => {
 
     return jobs.filter((j) => {
       if (!j.is_active) return false;
-      const endDate = (j as any).end_date as string | null | undefined;
+      const endDate = j.end_date;
       if (!endDate) return false;
       const endMs = new Date(`${endDate}T00:00:00+09:00`).getTime();
       return endMs >= todayStartMs && endMs <= cutoffMs;
@@ -465,10 +487,10 @@ export const JobsList = () => {
               row.push(job.next_execution_at ?? '');
               break;
             case 'pic_team':
-              row.push((job as any).pic_team ?? '');
+              row.push(job.pic_team ?? '');
               break;
             case 'end_date':
-              row.push((job as any).end_date ?? '');
+              row.push(job.end_date ?? '');
               break;
             case 'cron_expression':
               row.push(job.cron_expression ?? '');
@@ -487,7 +509,10 @@ export const JobsList = () => {
       });
 
       const csvText = stringifyCsv({ headers, rows });
-      downloadBlob(`jobs-${timestamp}.csv`, new Blob([csvText], { type: 'text/csv;charset=utf-8' }));
+      downloadBlob(
+        `jobs-${timestamp}.csv`,
+        new Blob([csvText], { type: 'text/csv;charset=utf-8' })
+      );
     } catch (error) {
       console.error('Failed to export jobs:', error);
       alert('Failed to export jobs. Please try again.');
@@ -582,13 +607,19 @@ export const JobsList = () => {
     );
   };
 
-  const handleFilterChange = (incoming: any) => {
+  type IncomingFilters = {
+    search?: string;
+    is_active?: boolean;
+    github_repo?: 'api' | 'mobile' | 'web';
+    pic_team?: string;
+  };
+  const handleFilterChange = (incoming: IncomingFilters) => {
     const safeIncoming = incoming ?? {};
 
     // IMPORTANT: the store merges filters; if a key is omitted it won't clear.
     // Always provide explicit `undefined` for "All" selections to override prior values.
     const nextFilters = {
-      search: 'search' in safeIncoming ? (safeIncoming.search || undefined) : undefined,
+      search: 'search' in safeIncoming ? safeIncoming.search || undefined : undefined,
       is_active: 'is_active' in safeIncoming ? safeIncoming.is_active : undefined,
       github_repo: 'github_repo' in safeIncoming ? safeIncoming.github_repo : undefined,
       pic_team: 'pic_team' in safeIncoming ? safeIncoming.pic_team : undefined,
@@ -600,7 +631,7 @@ export const JobsList = () => {
       nextFilters.search === filters.search &&
       nextFilters.is_active === filters.is_active &&
       nextFilters.github_repo === filters.github_repo &&
-      (nextFilters as any).pic_team === (filters as any).pic_team;
+      nextFilters.pic_team === filters.pic_team;
     if (unchanged && page === 1) return;
 
     setSelectedIds(new Set());
@@ -713,7 +744,7 @@ export const JobsList = () => {
         is_active: filters.is_active,
         github_repo: filters.github_repo,
         category: filters.category,
-        pic_team: (filters as any).pic_team,
+        pic_team: filters.pic_team,
       });
       const ok = window.confirm(
         `Select all ${matching.length} job(s) matching current filters? This includes jobs not visible on this page.`
@@ -750,8 +781,12 @@ export const JobsList = () => {
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Cron Jobs</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">Manage and monitor your scheduled tasks</p>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+              Cron Jobs
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1 text-sm">
+              Manage and monitor your scheduled tasks
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
             <DropdownMenu>
@@ -764,7 +799,10 @@ export const JobsList = () => {
                   {exporting ? 'Preparing…' : 'Download Jobs'}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700">
+              <DropdownMenuContent
+                align="end"
+                className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700"
+              >
                 <DropdownMenuItem onClick={() => downloadAllJobs('csv')} disabled={exporting}>
                   Download as CSV
                 </DropdownMenuItem>
@@ -780,7 +818,10 @@ export const JobsList = () => {
               <Upload className="mr-2 h-4 w-4" />
               Bulk Upload CSV
             </Button>
-            <Button onClick={() => navigate('/jobs/new')} className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all w-full sm:w-auto">
+            <Button
+              onClick={() => navigate('/jobs/new')}
+              className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all w-full sm:w-auto"
+            >
               <Plus className="mr-2 h-4 w-4" />
               Create Job
             </Button>
@@ -808,7 +849,11 @@ export const JobsList = () => {
         })}
       </div>
 
-      <JobFilters onFilterChange={handleFilterChange} initialStatus={initialStatus} picTeams={picTeams} />
+      <JobFiltersPanel
+        onFilterChange={handleFilterChange}
+        initialStatus={initialStatus}
+        picTeams={picTeams}
+      />
 
       {needsNoNextRun && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100 p-4 text-sm">
@@ -842,7 +887,8 @@ export const JobsList = () => {
               <div>
                 <div className="font-medium">Showing jobs ending soon</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Loaded up to 100 jobs and filtered to active jobs ending in the next 30 days (JST).
+                  Loaded up to 100 jobs and filtered to active jobs ending in the next 30 days
+                  (JST).
                 </div>
               </div>
             </div>
@@ -923,8 +969,8 @@ export const JobsList = () => {
       {displayJobs.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div>
-            Showing <span className="font-medium text-foreground">{displayJobs.length}</span>{' '}
-            job(s){needsNoNextRun ? (
+            Showing <span className="font-medium text-foreground">{displayJobs.length}</span> job(s)
+            {needsNoNextRun ? (
               <>
                 {' '}
                 (loaded: <span className="font-medium text-foreground">{jobs.length}</span>)
@@ -950,7 +996,10 @@ export const JobsList = () => {
                   </Button>
                 </DropdownMenuTrigger>
               </Tooltip>
-              <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700">
+              <DropdownMenuContent
+                align="end"
+                className="rounded-xl shadow-xl border-gray-200 dark:border-gray-700"
+              >
                 <DropdownMenuCheckboxItem
                   checked={Boolean(columnsPref.pic_team)}
                   onCheckedChange={() => toggleColumn('pic_team')}
@@ -1028,7 +1077,11 @@ export const JobsList = () => {
               >
                 {selectingAll ? 'Selecting…' : 'Select all matching'}
               </Button>
-              <Button onClick={() => runBulkAction('enable')} disabled={bulkWorking} className="w-full sm:w-auto">
+              <Button
+                onClick={() => runBulkAction('enable')}
+                disabled={bulkWorking}
+                className="w-full sm:w-auto"
+              >
                 Resume
               </Button>
               <Button
@@ -1039,7 +1092,12 @@ export const JobsList = () => {
               >
                 Pause
               </Button>
-              <Button onClick={() => runBulkAction('delete')} disabled={bulkWorking} variant="destructive" className="w-full sm:w-auto">
+              <Button
+                onClick={() => runBulkAction('delete')}
+                disabled={bulkWorking}
+                variant="destructive"
+                className="w-full sm:w-auto"
+              >
                 Delete
               </Button>
             </div>
@@ -1055,7 +1113,10 @@ export const JobsList = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg font-medium">
             No jobs found. Create your first job to get started.
           </p>
-          <Button onClick={() => navigate('/jobs/new')} className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all">
+          <Button
+            onClick={() => navigate('/jobs/new')}
+            className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Create Job
           </Button>
@@ -1138,7 +1199,9 @@ export const JobsList = () => {
                     />
                   </TableCell>
                   <TableCell className="font-medium">{job.name}</TableCell>
-                  <TableCell>{getRepoBadge(job) || <span className="text-muted-foreground">-</span>}</TableCell>
+                  <TableCell>
+                    {getRepoBadge(job) || <span className="text-muted-foreground">-</span>}
+                  </TableCell>
                   <TableCell>{getStatusBadge(job)}</TableCell>
                   {columnsPref.pic_team && (
                     <TableCell>
@@ -1158,11 +1221,18 @@ export const JobsList = () => {
                           <span className="font-mono text-sm">{job.end_date}</span>
                           {(() => {
                             const info = getEndDateInfo(job.end_date);
-                            if (!info) return <span className="text-xs text-muted-foreground">JST</span>;
-                            if (info.daysLeft < 0) return <Badge variant="secondary">expired</Badge>;
+                            if (!info)
+                              return <span className="text-xs text-muted-foreground">JST</span>;
+                            if (info.daysLeft < 0)
+                              return <Badge variant="secondary">expired</Badge>;
                             if (info.daysLeft === 0) return <Badge variant="warning">today</Badge>;
-                            if (info.daysLeft <= 30) return <Badge variant="warning">{info.daysLeft}d</Badge>;
-                            return <span className="text-xs text-muted-foreground">{info.daysLeft}d</span>;
+                            if (info.daysLeft <= 30)
+                              return <Badge variant="warning">{info.daysLeft}d</Badge>;
+                            return (
+                              <span className="text-xs text-muted-foreground">
+                                {info.daysLeft}d
+                              </span>
+                            );
                           })()}
                         </div>
                       ) : (
@@ -1172,7 +1242,9 @@ export const JobsList = () => {
                   )}
                   {columnsPref.cron_expression && (
                     <TableCell>
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{job.cron_expression}</code>
+                      <code className="text-sm bg-muted px-2 py-1 rounded">
+                        {job.cron_expression}
+                      </code>
                     </TableCell>
                   )}
                   {columnsPref.target_url && (
@@ -1188,14 +1260,22 @@ export const JobsList = () => {
                       })()}
                     </TableCell>
                   )}
-                  {columnsPref.last_execution_at && <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>}
+                  {columnsPref.last_execution_at && (
+                    <TableCell className="text-sm">{formatDate(job.last_execution_at)}</TableCell>
+                  )}
                   <TableCell className="text-sm">
                     <div className="flex flex-col leading-tight">
-                      <span className={getNextExecutionTextClassName(job.next_execution_at) || undefined}>
+                      <span
+                        className={
+                          getNextExecutionTextClassName(job.next_execution_at) || undefined
+                        }
+                      >
                         {formatCountdown(job.next_execution_at)}{' '}
                         <span className="text-[11px] text-muted-foreground">JST</span>
                       </span>
-                      <span className="text-[11px] text-muted-foreground">{formatDate(job.next_execution_at)}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatDate(job.next_execution_at)}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -1214,12 +1294,14 @@ export const JobsList = () => {
                         </Button>
                       </Tooltip>
                       <Tooltip content="Run Now" position="top">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleExecute(job.id)}
-                        >
-                          <Play className={job.is_active ? 'h-4 w-4 text-green-600' : 'h-4 w-4 text-muted-foreground'} />
+                        <Button variant="ghost" size="sm" onClick={() => handleExecute(job.id)}>
+                          <Play
+                            className={
+                              job.is_active
+                                ? 'h-4 w-4 text-green-600'
+                                : 'h-4 w-4 text-muted-foreground'
+                            }
+                          />
                         </Button>
                       </Tooltip>
                       <Tooltip content="Edit" position="top">

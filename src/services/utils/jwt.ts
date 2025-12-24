@@ -28,4 +28,3 @@ export const getTokenExpiryMs = (token: string): number | null => {
   if (!exp || typeof exp !== 'number') return null;
   return exp * 1000;
 };
-

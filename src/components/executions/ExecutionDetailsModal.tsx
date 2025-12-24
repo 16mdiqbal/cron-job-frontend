@@ -27,8 +27,6 @@ const formatDateJst = (dateString?: string) => {
 };
 
 export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Props) {
-  if (!open) return null;
-
   const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
@@ -80,11 +78,14 @@ export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Pro
     }
   };
 
-  if (!isBrowser) return null;
+  if (!open || !isBrowser) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[70]" role="presentation">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div
           ref={dialogRef}
@@ -100,7 +101,9 @@ export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Pro
                 <h2 className="text-lg font-semibold">Execution details</h2>
                 <Badge variant={statusBadgeVariant(execution.status)}>{execution.status}</Badge>
               </div>
-              <div className="text-sm text-muted-foreground">{execution.job_name || execution.job_id}</div>
+              <div className="text-sm text-muted-foreground">
+                {execution.job_name || execution.job_id}
+              </div>
             </div>
             <Tooltip content="Close" position="left">
               <Button variant="ghost" size="sm" onClick={onClose}>
@@ -130,7 +133,9 @@ export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Pro
                 <div className="text-xs text-muted-foreground">Completed</div>
                 <div className="font-medium">
                   {formatDateJst(execution.completed_at)}
-                  {execution.completed_at && <span className="ml-1 text-[11px] text-muted-foreground">JST</span>}
+                  {execution.completed_at && (
+                    <span className="ml-1 text-[11px] text-muted-foreground">JST</span>
+                  )}
                 </div>
               </div>
               <div>

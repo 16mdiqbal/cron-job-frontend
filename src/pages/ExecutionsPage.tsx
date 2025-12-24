@@ -1,33 +1,65 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useExecutionStore } from '@/stores/executionStore';
 import { jobService } from '@/services/api/jobService';
 import type { Job, JobExecution } from '@/types';
+import type { ExecutionFilters } from '@/services/api/executionService';
 import { ExecutionList } from '@/components/executions/ExecutionList';
 import { ExecutionDetailsModal } from '@/components/executions/ExecutionDetailsModal';
 import { RunJobModal } from '@/components/jobs/RunJobModal';
 import { PageTransition } from '@/components/ui/page-transition';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const ExecutionsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { executions, isLoading, error, page, limit, totalPages, loadExecutions, setPage, setFilters, filters } =
-    useExecutionStore();
+  const {
+    executions,
+    isLoading,
+    error,
+    page,
+    limit,
+    totalPages,
+    loadExecutions,
+    setPage,
+    setFilters,
+    filters,
+  } = useExecutionStore();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedExecution, setSelectedExecution] = useState<JobExecution | null>(null);
-  const [rangePreset, setRangePreset] = useState<'all' | '24h' | '7d' | '30d' | 'custom'>(() => '24h');
+  const [rangePreset, setRangePreset] = useState<'all' | '24h' | '7d' | '30d' | 'custom'>(
+    () => '24h'
+  );
   const [fromDate, setFromDate] = useState<string>('');
   const [toDate, setToDate] = useState<string>('');
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [retryJob, setRetryJob] = useState<Job | null>(null);
-  const [retryInitial, setRetryInitial] = useState<{ target_url?: string; dispatch_url?: string } | undefined>(undefined);
+  const [retryInitial, setRetryInitial] = useState<
+    { target_url?: string; dispatch_url?: string } | undefined
+  >(undefined);
   const appliedUrlFiltersRef = useRef(false);
   const isLoadingRef = useRef(false);
   const filtersRef = useRef(filters);
   const pageRef = useRef(page);
   const limitRef = useRef(limit);
+
+  const asExecutionStatus = (value: string): ExecutionFilters['status'] | undefined => {
+    if (
+      value === 'success' ||
+      value === 'failed' ||
+      value === 'running' ||
+      value === 'failed,running'
+    )
+      return value;
+    return undefined;
+  };
+
+  const asTriggerType = (value: string): ExecutionFilters['trigger_type'] | undefined => {
+    if (value === 'scheduled' || value === 'manual') return value;
+    return undefined;
+  };
 
   useEffect(() => {
     isLoadingRef.current = isLoading;
@@ -74,10 +106,15 @@ export const ExecutionsPage = () => {
     const jobId = searchParams.get('job_id');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
-    const nextFilters: any = { page: 1, limit: filters.limit ?? 20 };
+    const nextFilters: ExecutionFilters = { page: 1, limit: filters.limit ?? 20 };
 
     if (!appliedUrlFiltersRef.current) {
-      if (status === 'success' || status === 'failed' || status === 'running' || status === 'failed,running')
+      if (
+        status === 'success' ||
+        status === 'failed' ||
+        status === 'running' ||
+        status === 'failed,running'
+      )
         nextFilters.status = status;
       if (jobId) nextFilters.job_id = jobId;
       if (from) nextFilters.from = from;
@@ -85,9 +122,12 @@ export const ExecutionsPage = () => {
 
       if (!status && !jobId && !from && !to) {
         // No URL filters: prefer preserving the current store filters (e.g., when navigating away and back).
-        const current = filtersRef.current as any;
+        const current = filtersRef.current;
         const hasExisting =
-          Boolean(current?.status) || Boolean(current?.job_id) || Boolean(current?.from) || Boolean(current?.to);
+          Boolean(current?.status) ||
+          Boolean(current?.job_id) ||
+          Boolean(current?.from) ||
+          Boolean(current?.to);
 
         if (hasExisting) {
           nextFilters.status = current.status;
@@ -100,9 +140,6 @@ export const ExecutionsPage = () => {
           nextFilters.status = 'failed,running';
           nextFilters.from = fromIso;
           nextFilters.to = undefined;
-          setRangePreset('24h');
-          setFromDate('');
-          setToDate('');
         }
       }
       appliedUrlFiltersRef.current = true;
@@ -116,8 +153,15 @@ export const ExecutionsPage = () => {
       .getAllJobs()
       .then(setJobs)
       .catch((e) => console.error('Failed to load jobs for executions filter:', e));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadExecutions, searchParams, setFilters]);
+  }, [
+    filters.limit,
+    loadExecutions,
+    searchParams,
+    setFilters,
+    setFromDate,
+    setRangePreset,
+    setToDate,
+  ]);
 
   const jobOptions = useMemo(() => jobs, [jobs]);
 
@@ -151,7 +195,9 @@ export const ExecutionsPage = () => {
       const currentPage = pageRef.current;
       const currentLimit = currentFilters.limit ?? limitRef.current;
 
-      return loadExecutions({ ...currentFilters, page: currentPage, limit: currentLimit }).catch(() => undefined);
+      return loadExecutions({ ...currentFilters, page: currentPage, limit: currentLimit }).catch(
+        () => undefined
+      );
     };
 
     if (!shouldAutoRefresh) return;
@@ -170,10 +216,14 @@ export const ExecutionsPage = () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [loadExecutions, queryKey]);
+  }, [loadExecutions, queryKey, hasLoadedOnce]);
 
-  const applyDateRange = (nextPreset: 'all' | '24h' | '7d' | '30d' | 'custom', nextFrom?: string, nextTo?: string) => {
-    const nextFilters: any = {
+  const applyDateRange = (
+    nextPreset: 'all' | '24h' | '7d' | '30d' | 'custom',
+    nextFrom?: string,
+    nextTo?: string
+  ) => {
+    const nextFilters: ExecutionFilters = {
       ...filters,
       from: nextPreset === 'all' ? undefined : nextFrom || undefined,
       to: nextPreset === 'all' ? undefined : nextTo || undefined,
@@ -185,264 +235,286 @@ export const ExecutionsPage = () => {
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-          Executions
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">View job execution history</p>
-      </div>
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+            Executions
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">View job execution history</p>
+        </div>
 
-      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Job</div>
-                <Select
-                  value={filters.job_id || 'all'}
-                  onChange={(e) => {
-                    const jobId = e.target.value;
-                    const nextFilters: any = { ...filters, job_id: jobId === 'all' ? undefined : jobId, page: 1 };
-                    setFilters(nextFilters);
-                    loadExecutions(nextFilters);
-                  }}
-                >
-                  <option value="all">All Jobs</option>
-                  {jobOptions.map((job) => (
-                    <option key={job.id} value={job.id}>
-                      {job.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Status</div>
-                <Select
-                  value={filters.status || 'all'}
-                  onChange={(e) => {
-                    const status = e.target.value;
-                    const nextFilters: any = {
-                      ...filters,
-                      status: status === 'all' ? undefined : status,
-                      page: 1,
-                    };
-                    setFilters(nextFilters);
-                    loadExecutions(nextFilters);
-                  }}
-                >
-                  <option value="all">All Status</option>
-                  <option value="failed,running">Failed + Running</option>
-                  <option value="success">Success</option>
-                  <option value="failed">Failed</option>
-                  <option value="running">Running</option>
-                </Select>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Trigger</div>
-                <Select
-                  value={(filters as any).trigger_type || 'all'}
-                  onChange={(e) => {
-                    const triggerType = e.target.value;
-                    const nextFilters: any = {
-                      ...filters,
-                      trigger_type: triggerType === 'all' ? undefined : triggerType,
-                      page: 1,
-                    };
-                    setFilters(nextFilters);
-                    loadExecutions(nextFilters);
-                  }}
-                >
-                  <option value="all">All</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="manual">Manual</option>
-                </Select>
-              </div>
-
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Date range</div>
-                <Select
-                  value={rangePreset}
-                  onChange={(e) => {
-                    const preset = e.target.value as any;
-                    setRangePreset(preset);
-
-                    if (preset === 'all') {
-                      setFromDate('');
-                      setToDate('');
-                      applyDateRange('all');
-                      return;
-                    }
-
-                    if (preset === '24h') {
-                      setFromDate('');
-                      setToDate('');
-                      const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-                      applyDateRange('24h', from, undefined);
-                      return;
-                    }
-
-                    if (preset === '7d' || preset === '30d') {
-                      const now = new Date();
-                      const days = preset === '30d' ? 30 : 7;
-                      const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-                      const to = now.toISOString().slice(0, 10);
-                      setFromDate(from);
-                      setToDate(to);
-                      applyDateRange(preset, from, to);
-                      return;
-                    }
-
-                    // Custom: keep current values, but apply if already set.
-                    applyDateRange('custom', fromDate || undefined, toDate || undefined);
-                  }}
-                >
-                  <option value="all">All time</option>
-                  <option value="24h">Last 24 hours</option>
-                  <option value="7d">Last 7 days</option>
-                  <option value="30d">Last 30 days</option>
-                  <option value="custom">Custom</option>
-                </Select>
-
-                {rangePreset === 'custom' && (
-                  <div className="mt-2 flex gap-2">
-                    <Input
-                      type="date"
-                      value={fromDate}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setFromDate(v);
-                        applyDateRange('custom', v || undefined, toDate || undefined);
-                      }}
-                      aria-label="From date"
-                    />
-                    <Input
-                      type="date"
-                      value={toDate}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setToDate(v);
-                        applyDateRange('custom', fromDate || undefined, v || undefined);
-                      }}
-                      aria-label="To date"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {isLoading && executions.length === 0 && !hasLoadedOnce && (
-              <div className="flex items-center justify-center h-40 text-muted-foreground">
-                Loading executions...
-              </div>
-            )}
-
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-4 text-destructive">{error}</div>
-            )}
-
-            {!isLoading && !error && executions.length === 0 && (
-              <div className="p-6 bg-muted/30 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-muted-foreground">
-                No executions found for the selected filters.
-              </div>
-            )}
-
-            {executions.length > 0 && (
-              <ExecutionList
-                executions={executions}
-                onViewDetails={(execution) => setSelectedExecution(execution)}
-                onDrilldownJob={(jobId) => {
-                  const next = new URLSearchParams(searchParams);
-                  next.set('job_id', jobId);
-                  setSearchParams(next, { replace: true });
-
-                  const nextFilters: any = { ...filters, job_id: jobId, page: 1 };
-                  setFilters(nextFilters);
-                  loadExecutions(nextFilters);
-                }}
-              />
-            )}
-
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div>
-                  Page <span className="font-medium text-foreground">{page}</span> of{' '}
-                  <span className="font-medium text-foreground">{totalPages}</span>
+                  <div className="text-xs text-muted-foreground mb-1">Job</div>
+                  <Select
+                    value={filters.job_id || 'all'}
+                    onChange={(e) => {
+                      const jobId = e.target.value;
+                      const nextFilters: ExecutionFilters = {
+                        ...filters,
+                        job_id: jobId === 'all' ? undefined : jobId,
+                        page: 1,
+                      };
+                      setFilters(nextFilters);
+                      loadExecutions(nextFilters);
+                    }}
+                  >
+                    <option value="all">All Jobs</option>
+                    {jobOptions.map((job) => (
+                      <option key={job.id} value={job.id}>
+                        {job.name}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    className="px-3 py-1 rounded-md border border-gray-200 dark:border-gray-700 disabled:opacity-50"
-                    disabled={page <= 1}
-                    onClick={() => setPage(page - 1)}
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Status</div>
+                  <Select
+                    value={filters.status || 'all'}
+                    onChange={(e) => {
+                      const status = e.target.value;
+                      const nextFilters: ExecutionFilters = {
+                        ...filters,
+                        status: status === 'all' ? undefined : asExecutionStatus(status),
+                        page: 1,
+                      };
+                      setFilters(nextFilters);
+                      loadExecutions(nextFilters);
+                    }}
                   >
-                    Prev
-                  </button>
-                  <button
-                    className="px-3 py-1 rounded-md border border-gray-200 dark:border-gray-700 disabled:opacity-50"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(page + 1)}
+                    <option value="all">All Status</option>
+                    <option value="failed,running">Failed + Running</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                    <option value="running">Running</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Trigger</div>
+                  <Select
+                    value={filters.trigger_type || 'all'}
+                    onChange={(e) => {
+                      const triggerType = e.target.value;
+                      const nextFilters: ExecutionFilters = {
+                        ...filters,
+                        trigger_type:
+                          triggerType === 'all' ? undefined : asTriggerType(triggerType),
+                        page: 1,
+                      };
+                      setFilters(nextFilters);
+                      loadExecutions(nextFilters);
+                    }}
                   >
-                    Next
-                  </button>
+                    <option value="all">All</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="manual">Manual</option>
+                  </Select>
+                </div>
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Date range</div>
+                  <Select
+                    value={rangePreset}
+                    onChange={(e) => {
+                      const preset = e.target.value;
+                      if (
+                        preset !== 'all' &&
+                        preset !== '24h' &&
+                        preset !== '7d' &&
+                        preset !== '30d' &&
+                        preset !== 'custom'
+                      )
+                        return;
+
+                      setRangePreset(preset);
+
+                      if (preset === 'all') {
+                        setFromDate('');
+                        setToDate('');
+                        applyDateRange('all');
+                        return;
+                      }
+
+                      if (preset === '24h') {
+                        setFromDate('');
+                        setToDate('');
+                        const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+                        applyDateRange('24h', from, undefined);
+                        return;
+                      }
+
+                      if (preset === '7d' || preset === '30d') {
+                        const now = new Date();
+                        const days = preset === '30d' ? 30 : 7;
+                        const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+                          .toISOString()
+                          .slice(0, 10);
+                        const to = now.toISOString().slice(0, 10);
+                        setFromDate(from);
+                        setToDate(to);
+                        applyDateRange(preset, from, to);
+                        return;
+                      }
+
+                      // Custom: keep current values, but apply if already set.
+                      applyDateRange('custom', fromDate || undefined, toDate || undefined);
+                    }}
+                  >
+                    <option value="all">All time</option>
+                    <option value="24h">Last 24 hours</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="custom">Custom</option>
+                  </Select>
+
+                  {rangePreset === 'custom' && (
+                    <div className="mt-2 flex gap-2">
+                      <Input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setFromDate(v);
+                          applyDateRange('custom', v || undefined, toDate || undefined);
+                        }}
+                        aria-label="From date"
+                      />
+                      <Input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setToDate(v);
+                          applyDateRange('custom', fromDate || undefined, v || undefined);
+                        }}
+                        aria-label="To date"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            {selectedExecution && (
-              <ExecutionDetailsModal
-                open={Boolean(selectedExecution)}
-                execution={selectedExecution}
-                onClose={() => setSelectedExecution(null)}
-                onRetry={async () => {
-                  if (!selectedExecution || selectedExecution.status !== 'failed') return;
-                  try {
-                    const job = await jobService.getJob(selectedExecution.job_id);
-                    const init: { target_url?: string; dispatch_url?: string } = {};
+              {isLoading && executions.length === 0 && !hasLoadedOnce && (
+                <div className="flex items-center justify-center h-40 text-muted-foreground">
+                  Loading executions...
+                </div>
+              )}
 
-                    if (selectedExecution.execution_type === 'webhook' && selectedExecution.target) {
-                      init.target_url = selectedExecution.target;
-                    }
+              {error && (
+                <div className="rounded-md bg-destructive/10 p-4 text-destructive">{error}</div>
+              )}
 
-                    if (selectedExecution.execution_type === 'github_actions' && selectedExecution.target) {
-                      const parts = selectedExecution.target.split('/').filter(Boolean);
-                      if (parts.length >= 3) {
-                        const owner = parts[0];
-                        const repo = parts[1];
-                        const workflow = parts.slice(2).join('/');
-                        init.dispatch_url = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
+              {!isLoading && !error && executions.length === 0 && (
+                <div className="p-6 bg-muted/30 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-muted-foreground">
+                  No executions found for the selected filters.
+                </div>
+              )}
+
+              {executions.length > 0 && (
+                <ExecutionList
+                  executions={executions}
+                  onViewDetails={(execution) => setSelectedExecution(execution)}
+                  onDrilldownJob={(jobId) => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set('job_id', jobId);
+                    setSearchParams(next, { replace: true });
+
+                    const nextFilters: ExecutionFilters = { ...filters, job_id: jobId, page: 1 };
+                    setFilters(nextFilters);
+                    loadExecutions(nextFilters);
+                  }}
+                />
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div>
+                    Page <span className="font-medium text-foreground">{page}</span> of{' '}
+                    <span className="font-medium text-foreground">{totalPages}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className="px-3 py-1 rounded-md border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+                      disabled={page <= 1}
+                      onClick={() => setPage(page - 1)}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      className="px-3 py-1 rounded-md border border-gray-200 dark:border-gray-700 disabled:opacity-50"
+                      disabled={page >= totalPages}
+                      onClick={() => setPage(page + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {selectedExecution && (
+                <ExecutionDetailsModal
+                  open={Boolean(selectedExecution)}
+                  execution={selectedExecution}
+                  onClose={() => setSelectedExecution(null)}
+                  onRetry={async () => {
+                    if (!selectedExecution || selectedExecution.status !== 'failed') return;
+                    try {
+                      const job = await jobService.getJob(selectedExecution.job_id);
+                      const init: { target_url?: string; dispatch_url?: string } = {};
+
+                      if (
+                        selectedExecution.execution_type === 'webhook' &&
+                        selectedExecution.target
+                      ) {
+                        init.target_url = selectedExecution.target;
                       }
+
+                      if (
+                        selectedExecution.execution_type === 'github_actions' &&
+                        selectedExecution.target
+                      ) {
+                        const parts = selectedExecution.target.split('/').filter(Boolean);
+                        if (parts.length >= 3) {
+                          const owner = parts[0];
+                          const repo = parts[1];
+                          const workflow = parts.slice(2).join('/');
+                          init.dispatch_url = `https://github.com/${owner}/${repo}/actions/workflows/${workflow}`;
+                        }
+                      }
+
+                      setRetryInitial(Object.keys(init).length > 0 ? init : undefined);
+                      setRetryJob(job);
+                    } catch (e: unknown) {
+                      alert(getErrorMessage(e, 'Failed to load job for retry.'));
                     }
+                  }}
+                />
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-                    setRetryInitial(Object.keys(init).length > 0 ? init : undefined);
-                    setRetryJob(job);
-                  } catch (e: any) {
-                    alert(e?.message || 'Failed to load job for retry.');
-                  }
-                }}
-              />
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {retryJob && (
-        <RunJobModal
-          job={retryJob}
-          open={Boolean(retryJob)}
-          initial={retryInitial}
-          onClose={() => {
-            setRetryJob(null);
-            setRetryInitial(undefined);
-          }}
-          onRun={async (payload) => {
-            await jobService.executeJob(retryJob.id, payload);
-            alert('Job triggered successfully!');
-          }}
-        />
-      )}
-    </div>
+        {retryJob && (
+          <RunJobModal
+            job={retryJob}
+            open={Boolean(retryJob)}
+            initial={retryInitial}
+            onClose={() => {
+              setRetryJob(null);
+              setRetryInitial(undefined);
+            }}
+            onRun={async (payload) => {
+              await jobService.executeJob(retryJob.id, payload);
+              alert('Job triggered successfully!');
+            }}
+          />
+        )}
+      </div>
     </PageTransition>
   );
 };

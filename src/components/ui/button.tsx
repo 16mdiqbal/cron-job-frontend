@@ -16,7 +16,17 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant = 'default', size = 'default', loading, loadingText, loadingMinMs = 0, disabled, children, ...props },
+    {
+      className,
+      variant = 'default',
+      size = 'default',
+      loading,
+      loadingText,
+      loadingMinMs = 0,
+      disabled,
+      children,
+      ...props
+    },
     ref
   ) => {
     const [extendLoading, setExtendLoading] = React.useState(false);
@@ -43,7 +53,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
       const elapsed = Date.now() - startedAtRef.current;
       const remaining = minMs - elapsed;
-      
+
       if (remaining <= 0) {
         startedAtRef.current = null;
         return;
@@ -70,12 +80,14 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           'disabled:pointer-events-none disabled:opacity-50',
           'active:scale-[0.97] active:transition-none',
           {
-            'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md': variant === 'default',
+            'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-md':
+              variant === 'default',
             'bg-destructive text-destructive-foreground hover:bg-destructive/90 hover:shadow-md':
               variant === 'destructive',
             'border border-input bg-background hover:bg-accent hover:text-accent-foreground hover:shadow-sm':
               variant === 'outline',
-            'bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-sm': variant === 'secondary',
+            'bg-secondary text-secondary-foreground hover:bg-secondary/80 hover:shadow-sm':
+              variant === 'secondary',
             'hover:bg-accent hover:text-accent-foreground': variant === 'ghost',
             'text-primary underline-offset-4 hover:underline': variant === 'link',
           },

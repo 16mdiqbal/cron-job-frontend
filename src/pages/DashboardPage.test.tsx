@@ -71,19 +71,23 @@ describe('DashboardPage', () => {
       expect(mocks.getStatistics).toHaveBeenCalled();
     });
 
-    expect(screen.getByRole('link', { name: /creating your first scheduled job/i })).toHaveAttribute(
-      'href',
-      '/jobs/new'
-    );
+    expect(
+      screen.getByRole('link', { name: /creating your first scheduled job/i })
+    ).toHaveAttribute('href', '/jobs/new');
 
     expect(screen.getByRole('link', { name: /go to jobs/i })).toHaveAttribute('href', '/jobs');
-    expect(screen.getByRole('link', { name: /go to executions/i })).toHaveAttribute('href', '/executions');
-    expect(screen.getByRole('link', { name: /notification inbox/i })).toHaveAttribute('href', '/notifications');
-
-    expect(screen.getByRole('link', { name: /failed executions in the last 24 hours/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /go to executions/i })).toHaveAttribute(
       'href',
-      expect.stringContaining('/executions?status=failed&from=')
+      '/executions'
     );
+    expect(screen.getByRole('link', { name: /notification inbox/i })).toHaveAttribute(
+      'href',
+      '/notifications'
+    );
+
+    expect(
+      screen.getByRole('link', { name: /failed executions in the last 24 hours/i })
+    ).toHaveAttribute('href', expect.stringContaining('/executions?status=failed&from='));
     expect(screen.getByRole('link', { name: /jobs with no next run scheduled/i })).toHaveAttribute(
       'href',
       '/jobs?status=active&needs=no-next-run'
@@ -92,7 +96,10 @@ describe('DashboardPage', () => {
       'href',
       '/jobs?status=active&needs=ending-soon'
     );
-    expect(screen.getByRole('link', { name: /disabled jobs/i })).toHaveAttribute('href', '/jobs?status=inactive');
+    expect(screen.getByRole('link', { name: /disabled jobs/i })).toHaveAttribute(
+      'href',
+      '/jobs?status=inactive'
+    );
     vi.restoreAllMocks();
   });
 });

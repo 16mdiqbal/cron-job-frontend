@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Zap, Play, XCircle, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
@@ -28,6 +28,7 @@ export function QuickActionsMenu() {
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [runJob, setRunJob] = useState<Job | null>(null);
   const [runOpen, setRunOpen] = useState(false);
+  const fetchIdRef = useRef(0);
 
   const activeJobs = useMemo(() => jobs.filter((j) => j.is_active), [jobs]);
   const filteredJobs = useMemo(() => {
@@ -36,38 +37,35 @@ export function QuickActionsMenu() {
     return activeJobs.filter((j) => (j.name || '').toLowerCase().includes(q));
   }, [activeJobs, search]);
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    if (jobsLoading) return;
-    if (jobs.length > 0) return;
-
-    setJobsError(null);
-    setJobsLoading(true);
-    Promise.resolve(jobService.getAllJobs())
-      .then((data) => setJobs(Array.isArray(data) ? data : []))
-      .catch((e) => setJobsError(e?.message || 'Failed to load jobs'))
-      .finally(() => setJobsLoading(false));
-  }, [pickerOpen, jobsLoading, jobs.length]);
-
-  useEffect(() => {
-    if (!pickerOpen) return;
-    if (selectedJobId) return;
-    if (filteredJobs.length === 0) return;
-    setSelectedJobId(filteredJobs[0].id);
-  }, [pickerOpen, filteredJobs, selectedJobId]);
-
   const openRunPicker = () => {
+    const fetchId = ++fetchIdRef.current;
     setSearch('');
     setSelectedJobId('');
     setJobs([]);
+    setJobsError(null);
+    setJobsLoading(true);
     setPickerOpen(true);
+
+    Promise.resolve(jobService.getAllJobs())
+      .then((data) => {
+        if (fetchId !== fetchIdRef.current) return;
+        const list = Array.isArray(data) ? data : [];
+        setJobs(list);
+        const firstActive = list.find((j) => j.is_active);
+        if (firstActive) setSelectedJobId(firstActive.id);
+      })
+      .catch((e) => {
+        if (fetchId !== fetchIdRef.current) return;
+        setJobsError(e?.message || 'Failed to load jobs');
+      })
+      .finally(() => {
+        if (fetchId !== fetchIdRef.current) return;
+        setJobsLoading(false);
+      });
   };
 
   const openRunModal = () => {
-    const job =
-      activeJobs.find((j) => j.id === selectedJobId) ||
-      filteredJobs[0] ||
-      null;
+    const job = activeJobs.find((j) => j.id === selectedJobId) || filteredJobs[0] || null;
     if (!job) return;
     setRunJob(job);
     setRunOpen(true);
@@ -138,7 +136,9 @@ export function QuickActionsMenu() {
                 <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
                   <div className="space-y-1">
                     <h2 className="text-lg font-semibold">Run job</h2>
-                    <div className="text-sm text-muted-foreground">Choose an active job to run now.</div>
+                    <div className="text-sm text-muted-foreground">
+                      Choose an active job to run now.
+                    </div>
                   </div>
                   <Tooltip content="Close" position="left">
                     <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
@@ -163,7 +163,9 @@ export function QuickActionsMenu() {
                         <div className="rounded-lg border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
                           <div className="max-h-56 overflow-auto py-1">
                             {filteredJobs.length === 0 ? (
-                              <div className="px-3 py-2 text-sm text-muted-foreground">No matching active jobs</div>
+                              <div className="px-3 py-2 text-sm text-muted-foreground">
+                                No matching active jobs
+                              </div>
                             ) : (
                               filteredJobs.slice(0, 12).map((j) => (
                                 <button
@@ -180,7 +182,12 @@ export function QuickActionsMenu() {
                         </div>
                       )}
                     </div>
-                    <Button type="button" variant="outline" onClick={() => setSearch('')} disabled={!search.trim()}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSearch('')}
+                      disabled={!search.trim()}
+                    >
                       Clear
                     </Button>
                   </div>
@@ -193,7 +200,9 @@ export function QuickActionsMenu() {
                       disabled={jobsLoading || filteredJobs.length === 0}
                     >
                       {jobsLoading && <option value="">Loading…</option>}
-                      {!jobsLoading && filteredJobs.length === 0 && <option value="">No active jobs</option>}
+                      {!jobsLoading && filteredJobs.length === 0 && (
+                        <option value="">No active jobs</option>
+                      )}
                       {filteredJobs.map((j) => (
                         <option key={j.id} value={j.id}>
                           {j.name}
@@ -207,7 +216,11 @@ export function QuickActionsMenu() {
                     <Button type="button" variant="outline" onClick={() => setPickerOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="button" onClick={openRunModal} disabled={!selectedJobId || jobsLoading}>
+                    <Button
+                      type="button"
+                      onClick={openRunModal}
+                      disabled={!selectedJobId || jobsLoading}
+                    >
                       Continue
                     </Button>
                   </div>

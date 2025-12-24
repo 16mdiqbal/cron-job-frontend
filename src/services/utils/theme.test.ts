@@ -63,12 +63,16 @@ describe('theme utils', () => {
     const removeEventListener = vi.fn();
     let changeListener: ((event: MediaQueryListEvent) => void) | null = null;
 
-    addEventListener.mockImplementation((_type: string, listener: (event: MediaQueryListEvent) => void) => {
-      changeListener = listener;
-    });
-    removeEventListener.mockImplementation((_type: string, listener: (event: MediaQueryListEvent) => void) => {
-      if (changeListener === listener) changeListener = null;
-    });
+    addEventListener.mockImplementation(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        changeListener = listener;
+      }
+    );
+    removeEventListener.mockImplementation(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        if (changeListener === listener) changeListener = null;
+      }
+    );
 
     window.matchMedia = vi.fn().mockReturnValue({
       matches: true,

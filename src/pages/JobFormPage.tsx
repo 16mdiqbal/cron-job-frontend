@@ -4,9 +4,9 @@ import { PageTransition } from '@/components/ui/page-transition';
 const JobFormPage = () => {
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <JobForm />
-    </div>
+      <div className="space-y-6">
+        <JobForm />
+      </div>
     </PageTransition>
   );
 };

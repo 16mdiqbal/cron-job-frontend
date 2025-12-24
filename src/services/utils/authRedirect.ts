@@ -29,4 +29,3 @@ export const isSafeInternalRedirect = (path: string) => {
   if (p.startsWith('/login')) return false;
   return true;
 };
-
