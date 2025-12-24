@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const PicTeamsSettings = () => {
   const [teams, setTeams] = useState<PicTeam[]>([]);
@@ -21,8 +22,8 @@ export const PicTeamsSettings = () => {
     try {
       const data = await picTeamService.list(true);
       setTeams(data);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to load PIC teams');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load PIC teams'));
     } finally {
       setLoading(false);
     }
@@ -47,8 +48,8 @@ export const PicTeamsSettings = () => {
       setTeams((prev) => [created, ...prev]);
       setNewName('');
       setNewSlackHandle('');
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to create PIC team');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to create PIC team'));
     } finally {
       setCreating(false);
     }
@@ -60,15 +61,12 @@ export const PicTeamsSettings = () => {
       const result = await picTeamService.update(team.id, { is_active: !team.is_active });
       const updated = result.pic_team;
       setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to update PIC team');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to update PIC team'));
     }
   };
 
-  const save = async (
-    team: PicTeam,
-    payload: { name?: string; slack_handle?: string }
-  ) => {
+  const save = async (team: PicTeam, payload: { name?: string; slack_handle?: string }) => {
     const nextName = (payload.name ?? team.name).trim();
     const nextSlack = (payload.slack_handle ?? team.slack_handle ?? '').trim();
     if (!nextName) return;
@@ -92,8 +90,8 @@ export const PicTeamsSettings = () => {
       const updated = result.pic_team;
       setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       if (typeof result.jobs_updated === 'number') alert(`Migrated ${result.jobs_updated} job(s).`);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to rename PIC team');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to rename PIC team'));
     }
   };
 
@@ -104,7 +102,8 @@ export const PicTeamsSettings = () => {
           PIC Teams
         </CardTitle>
         <CardDescription className="text-gray-600 dark:text-gray-400">
-          Manage the teams responsible for jobs. Jobs store the team slug (stable), while the label can change.
+          Manage the teams responsible for jobs. Jobs store the team slug (stable), while the label
+          can change.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -156,10 +155,13 @@ export const PicTeamsSettings = () => {
           </Button>
         </div>
         <div className="text-xs text-muted-foreground">
-          Tip: Use a Slack user group mention like <code>{'<!subteam^S123ABC>'}</code> for reliable tagging.
+          Tip: Use a Slack user group mention like <code>{'<!subteam^S123ABC>'}</code> for reliable
+          tagging.
         </div>
 
-        {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+        {error && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+        )}
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
           <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-muted-foreground bg-muted/30">
@@ -171,7 +173,12 @@ export const PicTeamsSettings = () => {
           </div>
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {teams.map((t) => (
-              <TeamRow key={t.id} team={t} onToggle={toggleActive} onSave={save} />
+              <TeamRow
+                key={`${t.id}:${t.name}:${t.slack_handle || ''}`}
+                team={t}
+                onToggle={toggleActive}
+                onSave={save}
+              />
             ))}
           </div>
           {teams.length === 0 && !loading && (
@@ -190,7 +197,10 @@ const TeamRow = ({
 }: {
   team: PicTeam;
   onToggle: (team: PicTeam) => Promise<void> | void;
-  onSave: (team: PicTeam, payload: { name?: string; slack_handle?: string }) => Promise<void> | void;
+  onSave: (
+    team: PicTeam,
+    payload: { name?: string; slack_handle?: string }
+  ) => Promise<void> | void;
 }) => {
   const [name, setName] = useState(team.name);
   const [slackHandle, setSlackHandle] = useState(team.slack_handle || '');
@@ -202,9 +212,6 @@ const TeamRow = ({
       .replace(/-{2,}/g, '-')
       .replace(/^-|-$/g, '');
   const slugPreview = toSlug(name);
-
-  useEffect(() => setName(team.name), [team.name]);
-  useEffect(() => setSlackHandle(team.slack_handle || ''), [team.slack_handle]);
 
   return (
     <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center">
@@ -222,7 +229,9 @@ const TeamRow = ({
         />
       </div>
       <div className="col-span-1">
-        <Badge variant={team.is_active ? 'success' : 'secondary'}>{team.is_active ? 'active' : 'off'}</Badge>
+        <Badge variant={team.is_active ? 'success' : 'secondary'}>
+          {team.is_active ? 'active' : 'off'}
+        </Badge>
       </div>
       <div className="col-span-2 flex justify-end gap-2">
         <Button

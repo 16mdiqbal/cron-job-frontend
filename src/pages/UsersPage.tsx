@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageTransition } from '@/components/ui/page-transition';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -56,160 +57,170 @@ export const UsersPage = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Users</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Manage users and permissions</p>
-          </div>
-          <Button 
-            onClick={() => {
-              setCreateModalKey(prev => prev + 1);
-              setShowCreateModal(true);
-            }} 
-            className="gap-2 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all"
-          >
-            <UserPlus className="h-4 w-4" />
-            Create User
-          </Button>
-        </div>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <Card className="border-red-500 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between">
-              <p className="text-sm text-red-600">{error}</p>
-              <Button variant="ghost" size="sm" onClick={clearError}>
-                ×
-              </Button>
+    <PageTransition>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+                Users
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Manage users and permissions</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <Button
+              onClick={() => {
+                setCreateModalKey((prev) => prev + 1);
+                setShowCreateModal(true);
+              }}
+              className="gap-2 bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 shadow-md hover:shadow-lg transition-all"
+            >
+              <UserPlus className="h-4 w-4" />
+              Create User
+            </Button>
+          </div>
+        </div>
 
-      {/* Users Table */}
-      <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-        <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">All Users ({users.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading && (
-            <p className="text-center py-8 text-muted-foreground">Loading users...</p>
-          )}
+        {/* Error Display */}
+        {error && (
+          <Card className="border-red-500 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <p className="text-sm text-red-600">{error}</p>
+                <Button variant="ghost" size="sm" onClick={clearError}>
+                  ×
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          {!isLoading && users.length === 0 && (
-            <p className="text-center py-8 text-muted-foreground">No users found</p>
-          )}
+        {/* Users Table */}
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
+            <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+              All Users ({users.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading && (
+              <p className="text-center py-8 text-muted-foreground">Loading users...</p>
+            )}
 
-          {!isLoading && users.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b">
-                  <tr className="text-left">
-                    <th className="pb-3 font-semibold">Username</th>
-                    <th className="pb-3 font-semibold">Email</th>
-                    <th className="pb-3 font-semibold">Role</th>
-                    <th className="pb-3 font-semibold">Status</th>
-                    <th className="pb-3 font-semibold">Created</th>
-                    <th className="pb-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{user.username}</span>
-                          {user.id === currentUser?.id && (
-                            <Badge variant="info" className="text-xs">You</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {user.email}
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <Badge variant={getRoleBadgeVariant(user.role)} className="gap-1">
-                          <Shield className="h-3 w-3" />
-                          {user.role}
-                        </Badge>
-                      </td>
-                      <td className="py-4">
-                        <Badge variant={user.is_active ? 'success' : 'warning'}>
-                          {user.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </td>
-                      <td className="py-4 text-sm text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(user)}
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {user.id !== currentUser?.id && (
+            {!isLoading && users.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground">No users found</p>
+            )}
+
+            {!isLoading && users.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b">
+                    <tr className="text-left">
+                      <th className="pb-3 font-semibold">Username</th>
+                      <th className="pb-3 font-semibold">Email</th>
+                      <th className="pb-3 font-semibold">Role</th>
+                      <th className="pb-3 font-semibold">Status</th>
+                      <th className="pb-3 font-semibold">Created</th>
+                      <th className="pb-3 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{user.username}</span>
+                            {user.id === currentUser?.id && (
+                              <Badge variant="info" className="text-xs">
+                                You
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            {user.email}
+                          </div>
+                        </td>
+                        <td className="py-4">
+                          <Badge variant={getRoleBadgeVariant(user.role)} className="gap-1">
+                            <Shield className="h-3 w-3" />
+                            {user.role}
+                          </Badge>
+                        </td>
+                        <td className="py-4">
+                          <Badge variant={user.is_active ? 'success' : 'warning'}>
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                        <td className="py-4 text-sm text-muted-foreground">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-4">
+                          <div className="flex items-center justify-end gap-2">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDelete(user.id)}
-                              className={
-                                deleteConfirm === user.id
-                                  ? 'text-white bg-red-600 hover:bg-red-700'
-                                  : 'text-red-600 hover:text-red-700 hover:bg-red-50'
-                              }
+                              onClick={() => handleEdit(user)}
+                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                             >
-                              <Trash2 className="h-4 w-4" />
-                              {deleteConfirm === user.id && <span className="ml-1">Confirm?</span>}
+                              <Pencil className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                            {user.id !== currentUser?.id && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(user.id)}
+                                className={
+                                  deleteConfirm === user.id
+                                    ? 'text-white bg-red-600 hover:bg-red-700'
+                                    : 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                }
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                {deleteConfirm === user.id && (
+                                  <span className="ml-1">Confirm?</span>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Create User Modal */}
-      {showCreateModal && (
-        <UserCreateForm
-          key={`create-user-modal-${createModalKey}`}
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            fetchUsers();
-          }}
-        />
-      )}
+        {/* Create User Modal */}
+        {showCreateModal && (
+          <UserCreateForm
+            key={`create-user-modal-${createModalKey}`}
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={() => {
+              fetchUsers();
+            }}
+          />
+        )}
 
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <UserEditForm
-          user={selectedUser}
-          onClose={() => {
-            setShowEditModal(false);
-            setSelectedUser(null);
-          }}
-          onSuccess={() => {
-            fetchUsers();
-          }}
-        />
-      )}
-    </div>
+        {/* Edit User Modal */}
+        {showEditModal && selectedUser && (
+          <UserEditForm
+            user={selectedUser}
+            onClose={() => {
+              setShowEditModal(false);
+              setSelectedUser(null);
+            }}
+            onSuccess={() => {
+              fetchUsers();
+            }}
+          />
+        )}
+      </div>
+    </PageTransition>
   );
 };
 

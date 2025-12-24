@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/authStore';
-import { userService } from '@/services/api/userService';
+import { userService, type UpdateUserRequest } from '@/services/api/userService';
 import { Shield, Mail, User as UserIcon, Calendar } from 'lucide-react';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const ProfileSettings = () => {
   const { user, setUser } = useAuthStore();
@@ -14,7 +15,7 @@ export const ProfileSettings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState({
     email: user?.email || '',
     currentPassword: '',
@@ -43,13 +44,13 @@ export const ProfileSettings = () => {
         }
       }
 
-      const updateData: any = {};
-      
+      const updateData: UpdateUserRequest = {};
+
       // Only include changed fields
       if (formData.email !== user?.email) {
         updateData.email = formData.email;
       }
-      
+
       if (formData.newPassword) {
         updateData.password = formData.newPassword;
       }
@@ -62,10 +63,10 @@ export const ProfileSettings = () => {
 
       if (user?.id) {
         const updatedUser = await userService.updateUser(user.id, updateData);
-        
+
         // Update the auth store with the new user data
         setUser(updatedUser);
-        
+
         // Update form data with the new email
         setFormData({
           email: updatedUser.email,
@@ -73,17 +74,17 @@ export const ProfileSettings = () => {
           newPassword: '',
           confirmPassword: '',
         });
-        
+
         setSuccess('Profile updated successfully');
         setIsEditing(false);
-        
+
         // Auto-hide success message after 10 seconds
         setTimeout(() => {
           setSuccess(null);
         }, 10000);
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update profile'));
     } finally {
       setIsLoading(false);
     }
@@ -139,9 +140,7 @@ export const ProfileSettings = () => {
             <div className="flex-1">
               <Label className="text-sm font-medium">Role</Label>
               <div className="mt-1">
-                <Badge variant={getRoleBadgeVariant(user?.role || 'viewer')}>
-                  {user?.role}
-                </Badge>
+                <Badge variant={getRoleBadgeVariant(user?.role || 'viewer')}>{user?.role}</Badge>
               </div>
             </div>
           </div>
@@ -196,11 +195,14 @@ export const ProfileSettings = () => {
               <CardDescription>Change your email or password</CardDescription>
             </div>
             {!isEditing && (
-              <Button onClick={() => {
-                setIsEditing(true);
-                setSuccess(null);
-                setError(null);
-              }} variant="outline">
+              <Button
+                onClick={() => {
+                  setIsEditing(true);
+                  setSuccess(null);
+                  setError(null);
+                }}
+                variant="outline"
+              >
                 Edit
               </Button>
             )}
@@ -219,7 +221,6 @@ export const ProfileSettings = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-
               {/* Error Message */}
               {error && (
                 <div className="p-3 rounded-md bg-red-50 border border-red-200">
@@ -251,7 +252,7 @@ export const ProfileSettings = () => {
               {/* Password Section */}
               <div className="pt-4 border-t">
                 <h4 className="font-medium mb-4">Change Password (Optional)</h4>
-                
+
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
@@ -271,7 +272,9 @@ export const ProfileSettings = () => {
                       id="confirmPassword"
                       type="password"
                       value={formData.confirmPassword}
-                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, confirmPassword: e.target.value })
+                      }
                       placeholder="Re-enter new password"
                       disabled={isLoading}
                     />

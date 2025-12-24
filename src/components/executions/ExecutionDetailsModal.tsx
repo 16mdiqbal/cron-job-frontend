@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, type KeyboardEventHandler } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { JobExecution } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 
 type Props = {
@@ -17,33 +19,97 @@ const statusBadgeVariant = (status: JobExecution['status']) => {
   return 'secondary';
 };
 
+const formatDateJst = (dateString?: string) => {
+  if (!dateString) return '-';
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString(undefined, { timeZone: 'Asia/Tokyo' });
+};
+
 export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Props) {
-  if (!open) return null;
+  const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined';
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+    if (!isBrowser || !open) return;
+    dialogRef.current?.focus();
+  }, [isBrowser, open]);
 
-  return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+  const getFocusable = () => {
+    const root = dialogRef.current;
+    if (!root) return [];
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1);
+  };
+
+  const onDialogKeyDown: KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+
+    const focusable = getFocusable();
+    if (focusable.length === 0) {
+      e.preventDefault();
+      dialogRef.current?.focus();
+      return;
+    }
+
+    const current = document.activeElement as HTMLElement | null;
+    const currentIndex = current ? focusable.indexOf(current) : -1;
+    const lastIndex = focusable.length - 1;
+
+    if (e.shiftKey) {
+      if (currentIndex <= 0) {
+        e.preventDefault();
+        focusable[lastIndex]?.focus();
+      }
+      return;
+    }
+
+    if (currentIndex === lastIndex) {
+      e.preventDefault();
+      focusable[0]?.focus();
+    }
+  };
+
+  if (!open || !isBrowser) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70]" role="presentation">
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95 flex flex-col">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
+          onKeyDown={onDialogKeyDown}
+          className="w-full max-w-3xl max-h-[calc(100vh-2rem)] overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-all animate-in fade-in zoom-in-95 flex flex-col"
+        >
           <div className="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">Execution details</h2>
                 <Badge variant={statusBadgeVariant(execution.status)}>{execution.status}</Badge>
               </div>
-              <div className="text-sm text-muted-foreground">{execution.job_name || execution.job_id}</div>
+              <div className="text-sm text-muted-foreground">
+                {execution.job_name || execution.job_id}
+              </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} title="Close">
-              <X className="h-4 w-4" />
-            </Button>
+            <Tooltip content="Close" position="left">
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="h-4 w-4" />
+              </Button>
+            </Tooltip>
           </div>
 
           <div className="p-5 space-y-3 text-sm overflow-y-auto flex-1">
@@ -59,13 +125,17 @@ export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Pro
               <div>
                 <div className="text-xs text-muted-foreground">Started</div>
                 <div className="font-medium">
-                  {execution.started_at ? new Date(execution.started_at).toLocaleString() : '-'}
+                  {formatDateJst(execution.started_at)}
+                  <span className="ml-1 text-[11px] text-muted-foreground">JST</span>
                 </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Completed</div>
                 <div className="font-medium">
-                  {execution.completed_at ? new Date(execution.completed_at).toLocaleString() : '-'}
+                  {formatDateJst(execution.completed_at)}
+                  {execution.completed_at && (
+                    <span className="ml-1 text-[11px] text-muted-foreground">JST</span>
+                  )}
                 </div>
               </div>
               <div>
@@ -116,7 +186,8 @@ export function ExecutionDetailsModal({ execution, open, onClose, onRetry }: Pro
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

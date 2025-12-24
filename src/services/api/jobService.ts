@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { Job, PaginatedResponse, PaginationParams } from '@/types';
+import type { Job, JsonObject, PaginatedResponse, PaginationParams } from '@/types';
 import { sortJobsByDefaultOrder } from '@/services/utils/jobSorting';
 
 const getRepoType = (githubRepo?: string): 'api' | 'mobile' | 'web' | null => {
@@ -22,7 +22,7 @@ export interface CreateJobRequest {
   category?: string;
   end_date: string; // YYYY-MM-DD
   pic_team: string; // PicTeam.slug
-  metadata?: Record<string, any>;
+  metadata?: JsonObject;
   enable_email_notifications?: boolean;
   notification_emails?: string[];
   notify_on_success?: boolean;
@@ -43,7 +43,7 @@ export interface JobFilters extends PaginationParams {
 }
 
 export type ExecuteJobOverrides = {
-  metadata?: Record<string, any>;
+  metadata?: JsonObject;
   target_url?: string;
   github_owner?: string;
   github_repo?: string;
@@ -63,7 +63,14 @@ export type BulkUploadJobsResult = {
   };
   created_count: number;
   error_count: number;
-  errors: Array<{ row?: number; job_name?: string; error: string; message?: string }>;
+  errors: Array<{
+    row?: number;
+    job_name?: string;
+    error: string;
+    message?: string;
+    pic_team?: string;
+    pic_team_slug?: string;
+  }>;
   jobs: Array<{ id?: string; name: string; is_active?: boolean; cron_expression?: string }>;
 };
 
@@ -75,7 +82,13 @@ export type CronPreviewResponse = {
 
 export type TestRunResponse =
   | { ok: true; type: 'webhook' | 'github'; status_code: number; message: string }
-  | { ok: false; type: 'webhook' | 'github'; status_code?: number; error?: string; message: string };
+  | {
+      ok: false;
+      type: 'webhook' | 'github';
+      status_code?: number;
+      error?: string;
+      message: string;
+    };
 
 /**
  * Job Service
@@ -87,39 +100,42 @@ export const jobService = {
    */
   async getJobs(params?: JobFilters): Promise<PaginatedResponse<Job>> {
     const { data } = await client.get('/jobs');
-    
+
     // Backend returns { count, jobs }, transform to PaginatedResponse
     const jobs = data.jobs || [];
     const page = params?.page || 1;
     const limit = params?.limit || 10;
     const sortBy = params?.sort_by;
     const sortDir = params?.sort_dir || 'asc';
-    
+
     // Apply client-side filtering if needed
     let filteredJobs = jobs;
-    
+
     if (params?.search) {
       const searchLower = params.search.toLowerCase();
-      filteredJobs = filteredJobs.filter((job: Job) => 
-        job.name.toLowerCase().includes(searchLower) ||
-        job.target_url?.toLowerCase().includes(searchLower)
+      filteredJobs = filteredJobs.filter(
+        (job: Job) =>
+          job.name.toLowerCase().includes(searchLower) ||
+          job.target_url?.toLowerCase().includes(searchLower)
       );
     }
-    
+
     if (params?.is_active !== undefined) {
       filteredJobs = filteredJobs.filter((job: Job) => job.is_active === params.is_active);
     }
-    
+
     if (params?.github_repo) {
-      filteredJobs = filteredJobs.filter((job: Job) => getRepoType(job.github_repo) === params.github_repo);
+      filteredJobs = filteredJobs.filter(
+        (job: Job) => getRepoType(job.github_repo) === params.github_repo
+      );
     }
 
     if (params?.category) {
-      filteredJobs = filteredJobs.filter((job: Job) => (job as any).category === params.category);
+      filteredJobs = filteredJobs.filter((job: Job) => job.category === params.category);
     }
 
     if (params?.pic_team) {
-      filteredJobs = filteredJobs.filter((job: Job) => (job as any).pic_team === params.pic_team);
+      filteredJobs = filteredJobs.filter((job: Job) => job.pic_team === params.pic_team);
     }
 
     // Apply client-side sorting (before pagination)
@@ -144,7 +160,7 @@ export const jobService = {
 
         if (sortBy === 'end_date') {
           const parseEnd = (job: Job) => {
-            const raw = (job as any).end_date as string | null | undefined;
+            const raw = job.end_date;
             if (!raw) return null;
             const ms = new Date(`${raw}T00:00:00+09:00`).getTime();
             return Number.isNaN(ms) ? null : ms;
@@ -159,8 +175,8 @@ export const jobService = {
 
         if (sortBy === 'status') {
           // status: prefer Active first on asc, Inactive first on desc
-          const aActive = Boolean((a as any).is_active);
-          const bActive = Boolean((b as any).is_active);
+          const aActive = Boolean(a.is_active);
+          const bActive = Boolean(b.is_active);
           if (aActive === bActive) return 0;
           const aVal = aActive ? 0 : 1;
           const bVal = bActive ? 0 : 1;
@@ -173,14 +189,14 @@ export const jobService = {
       // Default ordering: active with nearest next execution first, inactive last.
       filteredJobs = sortJobsByDefaultOrder(filteredJobs);
     }
-    
+
     // Apply client-side pagination
     const total = filteredJobs.length;
     const totalPages = Math.ceil(total / limit);
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const paginatedJobs = filteredJobs.slice(startIndex, endIndex);
-    
+
     return {
       data: paginatedJobs,
       total,
@@ -281,7 +297,7 @@ export const jobService = {
     github_owner?: string;
     github_repo?: string;
     github_workflow_name?: string;
-    metadata?: Record<string, any>;
+    metadata?: JsonObject;
     timeout_seconds?: number;
   }): Promise<TestRunResponse> {
     const { data } = await client.post('/jobs/test-run', payload);

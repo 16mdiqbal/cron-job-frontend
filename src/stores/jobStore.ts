@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { Job, PaginatedResponse } from '@/types';
+import { getErrorMessage } from '@/services/utils/error';
 import {
   jobService,
   type BulkUploadJobsResult,
@@ -74,9 +75,8 @@ export const useJobStore = create<JobState>()(
             filters,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to load jobs';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to load jobs');
           set({
             error: errorMessage,
             isLoading: false,
@@ -96,9 +96,8 @@ export const useJobStore = create<JobState>()(
             currentJob: job,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to load job';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to load job');
           set({
             error: errorMessage,
             isLoading: false,
@@ -120,9 +119,8 @@ export const useJobStore = create<JobState>()(
 
           set({ isLoading: false });
           return newJob;
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to create job';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to create job');
           set({
             error: errorMessage,
             isLoading: false,
@@ -147,9 +145,8 @@ export const useJobStore = create<JobState>()(
           }));
 
           return updatedJob;
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to update job';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to update job');
           set({
             error: errorMessage,
             isLoading: false,
@@ -173,9 +170,8 @@ export const useJobStore = create<JobState>()(
             total: state.total - 1,
             isLoading: false,
           }));
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to delete job';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to delete job');
           set({
             error: errorMessage,
             isLoading: false,
@@ -198,9 +194,8 @@ export const useJobStore = create<JobState>()(
             currentJob: state.currentJob?.id === id ? updatedJob : state.currentJob,
             isLoading: false,
           }));
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to toggle job status';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to toggle job status');
           set({
             error: errorMessage,
             isLoading: false,
@@ -217,9 +212,8 @@ export const useJobStore = create<JobState>()(
         try {
           await jobService.executeJob(id, overrides);
           set({ isLoading: false });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to execute job';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to execute job');
           set({
             error: errorMessage,
             isLoading: false,
@@ -238,9 +232,8 @@ export const useJobStore = create<JobState>()(
           await get().loadJobs({ ...get().filters, page: 1 });
           set({ isLoading: false });
           return result;
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to bulk upload jobs';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to bulk upload jobs');
           set({
             error: errorMessage,
             isLoading: false,

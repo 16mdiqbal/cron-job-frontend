@@ -105,7 +105,9 @@ export const deleteReadNotifications = async (range?: NotificationRangeParams): 
   if (range?.from) params.set('from', range.from);
   if (range?.to) params.set('to', range.to);
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  const response = await client.delete<{ deleted_count: number }>(`/notifications/delete-read${suffix}`);
+  const response = await client.delete<{ deleted_count: number }>(
+    `/notifications/delete-read${suffix}`
+  );
   return response.data.deleted_count;
 };
 

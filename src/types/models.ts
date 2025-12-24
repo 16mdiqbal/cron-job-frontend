@@ -29,7 +29,7 @@ export interface Job {
   enable_email_notifications?: boolean;
   notification_emails?: string[];
   notify_on_success?: boolean;
-  metadata?: Record<string, any>;
+  metadata?: import('./json').JsonObject;
 }
 
 export interface JobExecution {
@@ -68,5 +68,3 @@ export interface NotificationSettings {
   createdAt: string;
   updatedAt: string;
 }
-
-export default User;

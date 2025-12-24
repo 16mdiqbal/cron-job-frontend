@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { JobExecution, PaginatedResponse } from '@/types';
+import { getErrorMessage } from '@/services/utils/error';
 import { executionService, type ExecutionFilters } from '@/services/api/executionService';
 
 interface ExecutionState {
@@ -52,7 +53,8 @@ export const useExecutionStore = create<ExecutionState>()(
         set({ isLoading: true, error: null });
         try {
           const filters = { ...get().filters, ...params };
-          const response: PaginatedResponse<JobExecution> = await executionService.getExecutions(filters);
+          const response: PaginatedResponse<JobExecution> =
+            await executionService.getExecutions(filters);
 
           set({
             executions: response.data,
@@ -63,9 +65,8 @@ export const useExecutionStore = create<ExecutionState>()(
             filters,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to load executions';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to load executions');
           set({
             error: errorMessage,
             isLoading: false,
@@ -85,9 +86,8 @@ export const useExecutionStore = create<ExecutionState>()(
             currentExecution: execution,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to load execution';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to load execution');
           set({
             error: errorMessage,
             isLoading: false,
@@ -108,9 +108,8 @@ export const useExecutionStore = create<ExecutionState>()(
             total: executions.length,
             isLoading: false,
           });
-        } catch (error: any) {
-          const errorMessage =
-            error?.response?.data?.message || error?.message || 'Failed to load job executions';
+        } catch (error: unknown) {
+          const errorMessage = getErrorMessage(error, 'Failed to load job executions');
           set({
             error: errorMessage,
             isLoading: false,

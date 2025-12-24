@@ -33,7 +33,7 @@ export const executionService = {
    */
   async getExecutions(params?: ExecutionFilters): Promise<PaginatedResponse<JobExecution>> {
     const { data } = await client.get('/executions', { params });
-    
+
     return {
       data: data.executions || [],
       total: data.total || 0,
@@ -65,7 +65,11 @@ export const executionService = {
   /**
    * Get execution statistics
    */
-  async getStatistics(params?: { job_id?: string; from?: string; to?: string }): Promise<ExecutionStatistics> {
+  async getStatistics(params?: {
+    job_id?: string;
+    from?: string;
+    to?: string;
+  }): Promise<ExecutionStatistics> {
     const { data } = await client.get('/executions/statistics', { params });
     return data;
   },

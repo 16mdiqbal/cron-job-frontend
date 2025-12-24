@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import type { User } from '@/types/models';
-import { userService, type CreateUserRequest, type UpdateUserRequest } from '@/services/api/userService';
+import { getErrorMessage } from '@/services/utils/error';
+import {
+  userService,
+  type CreateUserRequest,
+  type UpdateUserRequest,
+} from '@/services/api/userService';
 
 interface UserState {
   users: User[];
@@ -40,7 +45,7 @@ export const useUserStore = create<UserState>()(
           const users = await userService.getUsers();
           set({ users, isLoading: false });
         } catch (error: unknown) {
-          const errorMessage = (error as any)?.response?.data?.message || (error as Error)?.message || 'Failed to fetch users';
+          const errorMessage = getErrorMessage(error, 'Failed to fetch users');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -55,7 +60,7 @@ export const useUserStore = create<UserState>()(
           const user = await userService.getUser(userId);
           set({ selectedUser: user, isLoading: false });
         } catch (error: unknown) {
-          const errorMessage = (error as any)?.response?.data?.message || (error as Error)?.message || 'Failed to fetch user';
+          const errorMessage = getErrorMessage(error, 'Failed to fetch user');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -75,7 +80,7 @@ export const useUserStore = create<UserState>()(
           });
           return newUser;
         } catch (error: unknown) {
-          const errorMessage = (error as any)?.response?.data?.message || (error as Error)?.message || 'Failed to create user';
+          const errorMessage = getErrorMessage(error, 'Failed to create user');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -96,7 +101,7 @@ export const useUserStore = create<UserState>()(
           });
           return updatedUser;
         } catch (error: unknown) {
-          const errorMessage = (error as any)?.response?.data?.message || (error as Error)?.message || 'Failed to update user';
+          const errorMessage = getErrorMessage(error, 'Failed to update user');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }
@@ -116,7 +121,7 @@ export const useUserStore = create<UserState>()(
             isLoading: false,
           });
         } catch (error: unknown) {
-          const errorMessage = (error as any)?.response?.data?.message || (error as Error)?.message || 'Failed to delete user';
+          const errorMessage = getErrorMessage(error, 'Failed to delete user');
           set({ error: errorMessage, isLoading: false });
           throw error;
         }

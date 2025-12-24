@@ -124,9 +124,7 @@ export const UserEditForm = ({ user, onClose, onSuccess }: UserEditFormProps) =>
                 className={formErrors.password ? 'border-red-500' : ''}
                 disabled={isLoading}
               />
-              {formErrors.password && (
-                <p className="text-sm text-red-600">{formErrors.password}</p>
-              )}
+              {formErrors.password && <p className="text-sm text-red-600">{formErrors.password}</p>}
             </div>
 
             {/* Role */}

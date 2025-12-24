@@ -37,7 +37,7 @@ export const NotificationsDropdown = () => {
   useEffect(() => {
     // Fetch unread count on mount
     fetchUnreadCount();
-    
+
     // Poll for new notifications every 10 seconds for faster updates
     const interval = setInterval(() => {
       fetchUnreadCount();
@@ -97,25 +97,38 @@ export const NotificationsDropdown = () => {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-xs flex items-center justify-center shadow-md animate-pulse">
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white text-xs flex items-center justify-center shadow-md animate-bounce-subtle">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 max-h-[500px] overflow-y-auto rounded-2xl shadow-xl border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600">
-          <div className="flex-1">
+      <DropdownMenuContent
+        align="end"
+        className="w-80 max-h-none overflow-hidden rounded-2xl shadow-xl border-gray-200 dark:border-gray-700 p-0"
+      >
+        <div className="flex items-start justify-between gap-3 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600">
+          <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-gray-800 dark:text-gray-200">Notifications</h3>
             <div className="mt-2 flex items-center gap-2">
-              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Range</div>
+              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                Range
+              </div>
               <div className="w-44">
                 <Select
                   value={rangePreset}
-                  onChange={(e) => setRangePreset(e.target.value as any)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (next === 'all' || next === '7d' || next === '30d' || next === 'custom')
+                      setRangePreset(next);
+                  }}
                   className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
                 >
                   <option value="all">All time</option>
@@ -128,7 +141,7 @@ export const NotificationsDropdown = () => {
 
             {rangePreset === 'custom' && (
               <div className="mt-2 flex gap-2">
-                <div className="w-36">
+                <div className="flex-1 min-w-0">
                   <Input
                     type="date"
                     value={fromDate}
@@ -137,7 +150,7 @@ export const NotificationsDropdown = () => {
                     className="h-9 py-1 bg-white dark:bg-gray-800 border-indigo-200 dark:border-gray-700 focus-visible:ring-indigo-500"
                   />
                 </div>
-                <div className="w-36">
+                <div className="flex-1 min-w-0">
                   <Input
                     type="date"
                     value={toDate}
@@ -155,7 +168,7 @@ export const NotificationsDropdown = () => {
               variant="ghost"
               size="sm"
               onClick={handleMarkAllAsRead}
-              className="text-xs hover:bg-white dark:hover:bg-gray-600 transition-colors"
+              className="shrink-0 text-xs hover:bg-white dark:hover:bg-gray-600 transition-colors"
             >
               <CheckCheck className="h-4 w-4 mr-1" />
               Mark all read
@@ -163,88 +176,102 @@ export const NotificationsDropdown = () => {
           )}
         </div>
         <DropdownMenuSeparator />
-        
-        {loading && (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            Loading notifications...
-          </div>
-        )}
-        
-        {!loading && notifications.length === 0 && (
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            No notifications
-          </div>
-        )}
-        
-        {!loading && notifications.length > 0 && (
-          <>
-            {notifications.map((notification) => (
-              <DropdownMenuItem
-                key={notification.id}
-                className={`flex flex-col items-start p-3 cursor-pointer hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all ${
-                  notification.is_read ? '' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500'
-                }`}
-              >
-                <div className="flex items-start justify-between w-full">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getNotificationTypeColor(notification.type)}`}>
-                        {notification.type}
-                      </span>
-                      {!notification.is_read && (
-                        <span className="h-2 w-2 rounded-full bg-blue-500" />
-                      )}
-                    </div>
-                    <p className="font-medium text-sm mt-1">{notification.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1 break-words">
-                      {notification.message}
-                    </p>
-                    {notification.related_job_id && (
-                      <div className="mt-2">
-                        <Link
-                          to={`/jobs/${notification.related_job_id}/edit`}
-                          className="text-xs text-indigo-700 hover:underline underline-offset-4"
+
+        <div className="max-h-[380px] overflow-y-auto overflow-x-hidden">
+          {loading && (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Loading notifications...
+            </div>
+          )}
+
+          {!loading && notifications.length === 0 && (
+            <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
+          )}
+
+          {!loading && notifications.length > 0 && (
+            <>
+              {notifications.map((notification) => (
+                <DropdownMenuItem
+                  key={notification.id}
+                  className={`flex flex-col items-start p-3 cursor-pointer hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all ${
+                    notification.is_read
+                      ? ''
+                      : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between w-full">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${getNotificationTypeColor(notification.type)}`}
                         >
-                          Open job
-                        </Link>
+                          {notification.type}
+                        </span>
+                        {!notification.is_read && (
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        )}
                       </div>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(parseISO(notification.created_at), { addSuffix: true })}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 ml-2">
-                    {!notification.is_read && (
+                      <p className="font-medium text-sm mt-1">{notification.title}</p>
+                      <p className="text-sm text-muted-foreground mt-1 break-words">
+                        {notification.message}
+                      </p>
+                      {notification.related_job_id && (
+                        <div className="mt-2">
+                          <Link
+                            to={`/jobs/${notification.related_job_id}/edit`}
+                            className="text-xs text-indigo-700 hover:underline underline-offset-4"
+                          >
+                            Open job
+                          </Link>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatDistanceToNow(parseISO(notification.created_at), {
+                          addSuffix: true,
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      {!notification.is_read && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => handleMarkAsRead(e, notification.id)}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={(e) => handleMarkAsRead(e, notification.id)}
+                        onClick={(e) => handleDelete(e, notification.id)}
                       >
-                        <Check className="h-3 w-3" />
+                        <X className="h-3 w-3" />
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => handleDelete(e, notification.id)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </DropdownMenuItem>
-            ))}
-          </>
-        )}
+                </DropdownMenuItem>
+              ))}
+            </>
+          )}
+        </div>
 
         <DropdownMenuSeparator />
         <div className="p-3 flex items-center justify-between text-xs">
-          <Link to="/notifications" className="text-indigo-700 hover:underline underline-offset-4">
+          <Link
+            to="/notifications"
+            className="text-indigo-700 hover:underline underline-offset-4"
+            onClick={() => setIsOpen(false)}
+          >
             Open inbox
           </Link>
-          <Link to="/settings?tab=notifications" className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4">
+          <Link
+            to="/settings?tab=notifications"
+            className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
+            onClick={() => setIsOpen(false)}
+          >
             Settings
           </Link>
         </div>

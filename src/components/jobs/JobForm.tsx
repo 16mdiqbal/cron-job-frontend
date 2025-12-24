@@ -9,10 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import type { CreateJobRequest } from '@/services/api/jobService';
+import { getErrorMessage } from '@/services/utils/error';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
 import { picTeamService, type PicTeam } from '@/services/api/picTeamService';
-import { jobService } from '@/services/api/jobService';
+import { jobService, type CreateJobRequest, type TestRunResponse } from '@/services/api/jobService';
 import { Badge } from '@/components/ui/badge';
 
 interface MetadataField {
@@ -46,14 +46,20 @@ export const JobForm = () => {
   const [cronValidation, setCronValidation] = useState<{ valid: boolean; message?: string } | null>(
     null
   );
-  const [cronNextRun, setCronNextRun] = useState<{ timezone: string; nextRunIso: string } | null>(null);
-  const [cronPreview, setCronPreview] = useState<{ timezone: string; nextRuns: string[] } | null>(null);
+  const [cronNextRun, setCronNextRun] = useState<{ timezone: string; nextRunIso: string } | null>(
+    null
+  );
+  const [cronPreview, setCronPreview] = useState<{ timezone: string; nextRuns: string[] } | null>(
+    null
+  );
   const [cronPreviewLoading, setCronPreviewLoading] = useState(false);
   const [cronPreviewError, setCronPreviewError] = useState<string>('');
   const [showCronPreview, setShowCronPreview] = useState(false);
-  const [testRun, setTestRun] = useState<{ running: boolean; message?: string; ok?: boolean }>(() => ({
-    running: false,
-  }));
+  const [testRun, setTestRun] = useState<{ running: boolean; message?: string; ok?: boolean }>(
+    () => ({
+      running: false,
+    })
+  );
 
   const {
     register,
@@ -123,10 +129,10 @@ export const JobForm = () => {
         github_repo: currentJob.github_repo || 'api',
         github_workflow_name: currentJob.github_workflow_name || '',
         category: currentJob.category || 'general',
-        end_date: (currentJob as any).end_date || '',
-        pic_team: (currentJob as any).pic_team || '',
+        end_date: currentJob.end_date || '',
+        pic_team: currentJob.pic_team || '',
       });
-      
+
       // Load metadata
       if (currentJob.metadata && typeof currentJob.metadata === 'object') {
         const metadataFields = Object.entries(currentJob.metadata).map(([key, value]) => ({
@@ -156,7 +162,10 @@ export const JobForm = () => {
       try {
         const validation = await jobService.validateCronExpression(expr);
         if (cancelled) return;
-        setCronValidation({ valid: Boolean(validation?.valid), message: validation?.message || validation?.error });
+        setCronValidation({
+          valid: Boolean(validation?.valid),
+          message: validation?.message || validation?.error,
+        });
 
         if (!validation?.valid) {
           setCronNextRun(null);
@@ -178,12 +187,12 @@ export const JobForm = () => {
         } else {
           setCronPreview(null);
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (cancelled) return;
         setCronPreview(null);
         setCronNextRun(null);
         setCronValidation(null);
-        setCronPreviewError(e?.response?.data?.message || e?.message || 'Failed to preview cron.');
+        setCronPreviewError(getErrorMessage(e, 'Failed to preview cron.'));
       } finally {
         if (!cancelled) setCronPreviewLoading(false);
       }
@@ -220,14 +229,14 @@ export const JobForm = () => {
 
   const validateMetadata = (): boolean => {
     // Check if at least one valid metadata pair exists
-    const validPairs = metadata.filter(m => m.key.trim() && m.value.trim());
+    const validPairs = metadata.filter((m) => m.key.trim() && m.value.trim());
     if (validPairs.length === 0) {
       setMetadataError('At least one metadata key-value pair is required');
       return false;
     }
 
     // Check for duplicate keys
-    const keys = validPairs.map(m => m.key.trim());
+    const keys = validPairs.map((m) => m.key.trim());
     const uniqueKeys = new Set(keys);
     if (keys.length !== uniqueKeys.size) {
       setMetadataError('Duplicate metadata keys are not allowed');
@@ -246,7 +255,9 @@ export const JobForm = () => {
       }
 
       // Validate cron expression with backend rules so the user gets the "why" message.
-      const cronCheck = await jobService.validateCronExpression((data.cron_expression || '').trim());
+      const cronCheck = await jobService.validateCronExpression(
+        (data.cron_expression || '').trim()
+      );
       if (!cronCheck?.valid) {
         const message = cronCheck?.message || 'Invalid cron expression.';
         setError('cron_expression', { type: 'validate', message });
@@ -257,7 +268,7 @@ export const JobForm = () => {
 
       // Build metadata object from fields
       const metadataObj: Record<string, string> = {};
-      metadata.forEach(m => {
+      metadata.forEach((m) => {
         if (m.key.trim() && m.value.trim()) {
           metadataObj[m.key.trim()] = m.value.trim();
         }
@@ -289,7 +300,7 @@ export const JobForm = () => {
       }
 
       // Small delay to ensure backend has created the notification
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 300));
       // Refresh notifications after creating/updating job
       await fetchUnreadCount();
       await fetchNotifications(1, 10, true);
@@ -331,19 +342,17 @@ export const JobForm = () => {
         metadata: metadataObj,
       };
 
-      const result = await jobService.testRun(payload);
+      const result: TestRunResponse = await jobService.testRun(payload);
       setTestRun({
         running: false,
-        ok: Boolean((result as any)?.ok),
-        message:
-          (result as any)?.message ||
-          ((result as any)?.ok ? 'Test run succeeded.' : 'Test run failed.'),
+        ok: result.ok,
+        message: result.message || (result.ok ? 'Test run succeeded.' : 'Test run failed.'),
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       setTestRun({
         running: false,
         ok: false,
-        message: e?.response?.data?.message || e?.message || 'Test run failed.',
+        message: getErrorMessage(e, 'Test run failed.'),
       });
     }
   };
@@ -351,11 +360,17 @@ export const JobForm = () => {
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-indigo-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm border border-indigo-100 dark:border-gray-700">
-        <Button variant="ghost" onClick={() => navigate('/jobs')} className="mb-4 hover:bg-white dark:hover:bg-gray-700 transition-colors">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/jobs')}
+          className="mb-4 hover:bg-white dark:hover:bg-gray-700 transition-colors"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Jobs
         </Button>
-        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">{isEditMode ? 'Edit Job' : 'Create New Job'}</h1>
+        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+          {isEditMode ? 'Edit Job' : 'Create New Job'}
+        </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-1">
           {isEditMode ? 'Update your scheduled job' : 'Create a new scheduled cron job'}
         </p>
@@ -363,17 +378,23 @@ export const JobForm = () => {
 
       <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
         <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">Job Details</CardTitle>
-          <CardDescription className="text-gray-600 dark:text-gray-400">Configure your cron job settings</CardDescription>
+          <CardTitle className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+            Job Details
+          </CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-400">
+            Configure your cron job settings
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Job Configuration</h3>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="name">Job Name *</Label>
+                <Label htmlFor="name">
+                  Job Name <span className="text-rose-600 dark:text-rose-400">*</span>
+                </Label>
                 <Input
                   id="name"
                   placeholder="e.g., Daily Report Generation"
@@ -386,13 +407,19 @@ export const JobForm = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cron_expression">Cron Expression *</Label>
+                <Label htmlFor="cron_expression">
+                  Cron Expression <span className="text-rose-600 dark:text-rose-400">*</span>
+                </Label>
                 <div className="rounded-xl border border-indigo-200 dark:border-gray-700 bg-indigo-50/60 dark:bg-indigo-950/20 p-3">
                   <div className="text-sm text-indigo-900 dark:text-indigo-100">
                     <span className="font-semibold">Format:</span>{' '}
                     <span className="font-mono">minute hour day month day-of-week</span>{' '}
                     <span className="text-indigo-700/80 dark:text-indigo-200/80">
-                      (e.g., <span className="font-mono bg-white/70 dark:bg-gray-900/40 px-1 py-0.5 rounded">*/5 * * * *</span> = every 5 minutes)
+                      (e.g.,{' '}
+                      <span className="font-mono bg-white/70 dark:bg-gray-900/40 px-1 py-0.5 rounded">
+                        */5 * * * *
+                      </span>{' '}
+                      = every 5 minutes)
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-indigo-700/80 dark:text-indigo-200/80">
@@ -416,7 +443,9 @@ export const JobForm = () => {
                   })}
                 />
                 {cronValidation && !cronValidation.valid && (
-                  <p className="text-sm text-destructive">{cronValidation.message || 'Invalid cron expression.'}</p>
+                  <p className="text-sm text-destructive">
+                    {cronValidation.message || 'Invalid cron expression.'}
+                  </p>
                 )}
                 {cronValidation?.valid && (
                   <p className="text-sm text-green-700 dark:text-green-300">
@@ -429,7 +458,10 @@ export const JobForm = () => {
                       <>
                         {' '}
                         and will run next at{' '}
-                        <span className="font-semibold">{formatJst(cronNextRun.nextRunIso)}</span> JST.
+                        <span className="font-semibold">
+                          {formatJst(cronNextRun.nextRunIso)}
+                        </span>{' '}
+                        JST.
                       </>
                     ) : cronPreviewLoading ? (
                       <> (loading next runs…)</>
@@ -460,10 +492,16 @@ export const JobForm = () => {
                 {showCronPreview && (
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-900/30 p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">Next 5 runs</div>
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                        Next 5 runs
+                      </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{cronPreview?.timezone || cronNextRun?.timezone || 'Asia/Tokyo'}</Badge>
-                        {cronPreviewLoading && <span className="text-xs text-muted-foreground">Loading…</span>}
+                        <Badge variant="secondary">
+                          {cronPreview?.timezone || cronNextRun?.timezone || 'Asia/Tokyo'}
+                        </Badge>
+                        {cronPreviewLoading && (
+                          <span className="text-xs text-muted-foreground">Loading…</span>
+                        )}
                       </div>
                     </div>
                     {cronPreview?.nextRuns?.length ? (
@@ -505,7 +543,9 @@ export const JobForm = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="end_date">End Date (JST) *</Label>
+                  <Label htmlFor="end_date">
+                    End Date (JST) <span className="text-rose-600 dark:text-rose-400">*</span>
+                  </Label>
                   <Input
                     id="end_date"
                     type="date"
@@ -518,7 +558,9 @@ export const JobForm = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="pic_team">PIC Team *</Label>
+                  <Label htmlFor="pic_team">
+                    PIC Team <span className="text-rose-600 dark:text-rose-400">*</span>
+                  </Label>
                   <Select
                     id="pic_team"
                     error={errors.pic_team?.message}
@@ -546,7 +588,9 @@ export const JobForm = () => {
                       .
                     </p>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Choose the team responsible for this job.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Choose the team responsible for this job.
+                    </p>
                   )}
                 </div>
               </div>
@@ -574,9 +618,11 @@ export const JobForm = () => {
             {/* GitHub Actions Configuration */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">GitHub Actions Configuration</h3>
-              
+
               <div className="space-y-2">
-                <Label htmlFor="github_owner">GitHub Owner *</Label>
+                <Label htmlFor="github_owner">
+                  GitHub Owner <span className="text-rose-600 dark:text-rose-400">*</span>
+                </Label>
                 <Input
                   id="github_owner"
                   placeholder="e.g., myorganization"
@@ -586,13 +632,13 @@ export const JobForm = () => {
                     minLength: { value: 1, message: 'GitHub owner cannot be empty' },
                   })}
                 />
-                <p className="text-sm text-muted-foreground">
-                  GitHub organization or username
-                </p>
+                <p className="text-sm text-muted-foreground">GitHub organization or username</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="github_repo">Repository *</Label>
+                <Label htmlFor="github_repo">
+                  Repository <span className="text-rose-600 dark:text-rose-400">*</span>
+                </Label>
                 <Select
                   id="github_repo"
                   value={github_repo}
@@ -603,13 +649,13 @@ export const JobForm = () => {
                   <option value="mobile">Mobile</option>
                   <option value="web">Web</option>
                 </Select>
-                <p className="text-sm text-muted-foreground">
-                  Select the repository for this job
-                </p>
+                <p className="text-sm text-muted-foreground">Select the repository for this job</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="github_workflow_name">Workflow Name *</Label>
+                <Label htmlFor="github_workflow_name">
+                  Workflow Name <span className="text-rose-600 dark:text-rose-400">*</span>
+                </Label>
                 <Input
                   id="github_workflow_name"
                   placeholder="e.g., deploy.yml"
@@ -628,7 +674,9 @@ export const JobForm = () => {
             {/* Metadata Configuration */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Metadata *</h3>
+                <h3 className="text-lg font-medium">
+                  Metadata <span className="text-rose-600 dark:text-rose-400">*</span>
+                </h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -644,9 +692,7 @@ export const JobForm = () => {
                 Add metadata key-value pairs for GitHub Actions workflow dispatch (max 10)
               </p>
 
-              {metadataError && (
-                <p className="text-sm text-destructive">{metadataError}</p>
-              )}
+              {metadataError && <p className="text-sm text-destructive">{metadataError}</p>}
 
               <div className="space-y-3">
                 {metadata.map((field, index) => (
@@ -686,8 +732,9 @@ export const JobForm = () => {
                 type="submit"
                 loading={isLoading || saving}
                 loadingText={isEditMode ? 'Updating…' : 'Creating…'}
-                loadingMinMs={400}
+                loadingMinMs={600}
                 disabled={isLoading || saving}
+                className="min-w-[120px]"
               >
                 {isEditMode ? 'Update Job' : 'Create Job'}
               </Button>
@@ -706,7 +753,12 @@ export const JobForm = () => {
                   <>Test run</>
                 )}
               </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/jobs')} disabled={isLoading || saving}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/jobs')}
+                disabled={isLoading || saving}
+              >
                 Cancel
               </Button>
             </div>

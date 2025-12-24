@@ -7,7 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
-import { getAndClearPostLoginRedirect, isSafeInternalRedirect } from '@/services/utils/authRedirect';
+import {
+  getAndClearPostLoginRedirect,
+  isSafeInternalRedirect,
+} from '@/services/utils/authRedirect';
+import { getErrorMessage } from '@/services/utils/error';
 
 interface LoginFormData {
   emailOrUsername: string;
@@ -20,6 +24,20 @@ export const LoginForm = () => {
   const location = useLocation();
   const { login, isLoading } = useAuthStore();
   const [serverError, setServerError] = useState<string>('');
+
+  const getStateFromPath = (state: unknown): string | null => {
+    if (!state || typeof state !== 'object') return null;
+    if (!('from' in state)) return null;
+    const from = (state as { from?: unknown }).from;
+    if (!from || typeof from !== 'object') return null;
+
+    const pathname = 'pathname' in from ? (from as { pathname?: unknown }).pathname : undefined;
+    const search = 'search' in from ? (from as { search?: unknown }).search : undefined;
+    const hash = 'hash' in from ? (from as { hash?: unknown }).hash : undefined;
+
+    if (typeof pathname !== 'string') return null;
+    return `${pathname}${typeof search === 'string' ? search : ''}${typeof hash === 'string' ? hash : ''}`;
+  };
 
   const {
     register,
@@ -43,23 +61,15 @@ export const LoginForm = () => {
         : { username: data.emailOrUsername, password: data.password };
 
       await login(credentials);
-      const stateFrom = (location.state as any)?.from;
-      const statePath =
-        stateFrom && typeof stateFrom.pathname === 'string'
-          ? `${stateFrom.pathname || ''}${stateFrom.search || ''}${stateFrom.hash || ''}`
-          : null;
+      const statePath = getStateFromPath(location.state);
       const stored = getAndClearPostLoginRedirect();
       const next = statePath || stored;
-      navigate(isSafeInternalRedirect(next || '') ? (next as string) : '/dashboard', { replace: true });
+      const safeNext = next && isSafeInternalRedirect(next) ? next : '/dashboard';
+      navigate(safeNext, { replace: true });
     } catch (error: unknown) {
-      // Extract error message from various possible locations
-      const axiosError = error as any;
-      const message =
-        axiosError?.response?.data?.error ||
-        axiosError?.response?.data?.message ||
-        axiosError?.message ||
-        'Login failed. Please check your credentials and try again.';
-      setServerError(message);
+      setServerError(
+        getErrorMessage(error, 'Login failed. Please check your credentials and try again.')
+      );
     }
   };
 

@@ -3,10 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { slackSettingsService, type SlackSettings } from '@/services/api/slackSettingsService';
+import { getErrorMessage } from '@/services/utils/error';
+import {
+  slackSettingsService,
+  type SlackSettings as SlackSettingsModel,
+} from '@/services/api/slackSettingsService';
 
 export const SlackSettings = () => {
-  const [settings, setSettings] = useState<SlackSettings | null>(null);
+  const [settings, setSettings] = useState<SlackSettingsModel | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +28,8 @@ export const SlackSettings = () => {
       setIsEnabled(Boolean(data.is_enabled));
       setWebhookUrl((data.webhook_url || '').trim());
       setChannel((data.channel || '').trim());
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to load Slack settings');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load Slack settings'));
     } finally {
       setLoading(false);
     }
@@ -45,8 +49,8 @@ export const SlackSettings = () => {
         channel: channel.trim() || null,
       });
       setSettings(updated);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to update Slack settings');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to update Slack settings'));
     } finally {
       setSaving(false);
     }
@@ -64,13 +68,17 @@ export const SlackSettings = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant={isEnabled ? 'success' : 'secondary'}>{isEnabled ? 'enabled' : 'disabled'}</Badge>
+          <Badge variant={isEnabled ? 'success' : 'secondary'}>
+            {isEnabled ? 'enabled' : 'disabled'}
+          </Badge>
           <Button variant="outline" size="sm" onClick={refresh} disabled={loading || saving}>
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </div>
 
-        {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+        {error && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
@@ -110,14 +118,21 @@ export const SlackSettings = () => {
             />
             Enable Slack notifications
           </label>
-          <Button onClick={save} loading={saving} loadingText="Saving…" loadingMinMs={400} disabled={saving}>
+          <Button
+            onClick={save}
+            loading={saving}
+            loadingText="Saving…"
+            loadingMinMs={400}
+            disabled={saving}
+          >
             Save
           </Button>
         </div>
 
         {settings && (
           <div className="text-xs text-muted-foreground">
-            Last updated: {settings.updated_at ? new Date(settings.updated_at).toLocaleString() : '-'}
+            Last updated:{' '}
+            {settings.updated_at ? new Date(settings.updated_at).toLocaleString() : '-'}
           </div>
         )}
       </CardContent>

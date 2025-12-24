@@ -1,10 +1,13 @@
 import { JobForm } from '@/components/jobs/JobForm';
+import { PageTransition } from '@/components/ui/page-transition';
 
 const JobFormPage = () => {
   return (
-    <div className="space-y-6">
-      <JobForm />
-    </div>
+    <PageTransition>
+      <div className="space-y-6">
+        <JobForm />
+      </div>
+    </PageTransition>
   );
 };
 

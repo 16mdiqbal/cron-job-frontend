@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { jobCategoryService, type JobCategory } from '@/services/api/jobCategoryService';
+import { getErrorMessage } from '@/services/utils/error';
 
 export const JobCategoriesSettings = () => {
   const [categories, setCategories] = useState<JobCategory[]>([]);
@@ -20,8 +21,8 @@ export const JobCategoriesSettings = () => {
     try {
       const data = await jobCategoryService.list(true);
       setCategories(data);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to load categories');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to load categories'));
     } finally {
       setLoading(false);
     }
@@ -40,8 +41,8 @@ export const JobCategoriesSettings = () => {
       const created = await jobCategoryService.create({ name });
       setCategories((prev) => [created, ...prev]);
       setNewName('');
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to create category');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to create category'));
     } finally {
       setCreating(false);
     }
@@ -50,11 +51,13 @@ export const JobCategoriesSettings = () => {
   const toggleActive = async (category: JobCategory) => {
     setError(null);
     try {
-      const result = await jobCategoryService.update(category.id, { is_active: !category.is_active });
+      const result = await jobCategoryService.update(category.id, {
+        is_active: !category.is_active,
+      });
       const updated = result.category;
       setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to update category');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to update category'));
     }
   };
 
@@ -73,8 +76,8 @@ export const JobCategoriesSettings = () => {
       const updated = result.category;
       setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       if (typeof result.jobs_updated === 'number') alert(`Migrated ${result.jobs_updated} job(s).`);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || 'Failed to rename category');
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, 'Failed to rename category'));
     }
   };
 
@@ -85,7 +88,8 @@ export const JobCategoriesSettings = () => {
           Job Categories
         </CardTitle>
         <CardDescription className="text-gray-600 dark:text-gray-400">
-          Manage the categories available when creating jobs. Jobs store the category slug (stable), while the label can change.
+          Manage the categories available when creating jobs. Jobs store the category slug (stable),
+          while the label can change.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -123,10 +127,12 @@ export const JobCategoriesSettings = () => {
           </Button>
         </div>
 
-        {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+        {error && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
+        )}
 
-          <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
-            <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-muted-foreground bg-muted/30">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
+          <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-muted-foreground bg-muted/30">
             <div className="col-span-5">Name</div>
             <div className="col-span-4">Slug</div>
             <div className="col-span-1">State</div>
@@ -134,7 +140,12 @@ export const JobCategoriesSettings = () => {
           </div>
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {categories.map((c) => (
-              <CategoryRow key={c.id} category={c} onToggle={toggleActive} onSave={save} />
+              <CategoryRow
+                key={`${c.id}:${c.name}`}
+                category={c}
+                onToggle={toggleActive}
+                onSave={save}
+              />
             ))}
           </div>
           {categories.length === 0 && !loading && (
@@ -165,18 +176,17 @@ const CategoryRow = ({
       .replace(/^-|-$/g, '');
   const slugPreview = toSlug(name);
 
-  useEffect(() => setName(category.name), [category.name]);
-
   return (
     <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center">
       <div className="col-span-5">
-        <Input value={name} onChange={(e) => setName(e.target.value)} disabled={category.slug === 'general'} />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={category.slug === 'general'}
+        />
       </div>
       <div className="col-span-4">
-        <Input
-          value={category.slug === 'general' ? 'general' : slugPreview}
-          disabled
-        />
+        <Input value={category.slug === 'general' ? 'general' : slugPreview} disabled />
       </div>
       <div className="col-span-1">
         <Badge variant={category.is_active ? 'success' : 'secondary'}>
@@ -188,11 +198,7 @@ const CategoryRow = ({
           variant="outline"
           size="sm"
           onClick={() => onSave(category, name)}
-          disabled={
-            !name.trim() ||
-            name.trim() === category.name ||
-            category.slug === 'general'
-          }
+          disabled={!name.trim() || name.trim() === category.name || category.slug === 'general'}
         >
           Save
         </Button>

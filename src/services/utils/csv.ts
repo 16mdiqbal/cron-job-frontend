@@ -143,4 +143,3 @@ export function stringifyCsv(table: CsvTable): string {
   const rowLines = table.rows.map((row) => row.map((c) => csvEscapeCell(c ?? '')).join(','));
   return [headerLine, ...rowLines].join('\r\n') + '\r\n';
 }
-

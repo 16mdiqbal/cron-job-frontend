@@ -3,9 +3,24 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NotificationsDropdown } from '@/components/notifications/NotificationsDropdown';
-import { Menu, Clock, Moon, Sun } from 'lucide-react';
+import { Menu, Clock, Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { applyTheme, getInitialTheme, setStoredTheme, toggleTheme, type ThemeMode } from '@/services/utils/theme';
+import { Tooltip } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  applyTheme,
+  getInitialTheme,
+  setStoredTheme,
+  type ThemeMode,
+} from '@/services/utils/theme';
 import { QuickActionsMenu } from '@/components/layout/QuickActionsMenu';
 import { getTokenExpiryMs } from '@/services/utils/jwt';
 
@@ -55,6 +70,13 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
     msRemaining! <= 2 * 60_000 &&
     !dismissedUntilExpiry;
 
+  const themeLabel = theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light';
+
+  const handleThemeChange = (next: ThemeMode) => {
+    setTheme(next);
+    setStoredTheme(next);
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -95,11 +117,16 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         </Button>
 
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center gap-2 group transition-transform hover:scale-105">
+        <Link
+          to="/dashboard"
+          className="flex items-center gap-2 group transition-transform hover:scale-105"
+        >
           <div className="p-2 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg shadow-md group-hover:shadow-lg transition-shadow">
             <Clock className="h-5 w-5 text-white" />
           </div>
-          <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">Cron Job Manager</span>
+          <span className="font-bold text-lg bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+            Cron Job Manager
+          </span>
         </Link>
 
         {/* Spacer */}
@@ -109,20 +136,46 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         <div className="flex items-center space-x-4">
           <QuickActionsMenu />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              const next = toggleTheme(theme);
-              setTheme(next);
-              setStoredTheme(next);
-              applyTheme(next);
-            }}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
-          >
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
+          <DropdownMenu>
+            <Tooltip content={`Theme: ${themeLabel}`} position="bottom">
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 dark:hover:from-gray-700 dark:hover:to-gray-600 rounded-lg transition-all"
+                >
+                  {theme === 'system' ? (
+                    <Monitor className="h-5 w-5" />
+                  ) : theme === 'dark' ? (
+                    <Moon className="h-5 w-5" />
+                  ) : (
+                    <Sun className="h-5 w-5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="min-w-[10rem]">
+              <DropdownMenuLabel>Theme</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup
+                value={theme}
+                onValueChange={(value) => handleThemeChange(value as ThemeMode)}
+              >
+                <DropdownMenuRadioItem value="system">
+                  <Monitor className="h-4 w-4" />
+                  System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="h-4 w-4" />
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="h-4 w-4" />
+                  Dark
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Notifications */}
           <NotificationsDropdown />
@@ -130,8 +183,12 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
           {/* User menu */}
           <div className="flex items-center space-x-3">
             <div className="hidden text-right md:block px-3 py-1 rounded-lg bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 border border-indigo-100 dark:border-gray-700">
-              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{user?.name || user?.email}</p>
-              <p className="text-xs text-indigo-600 dark:text-indigo-400 capitalize font-medium">{user?.role}</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                {user?.username || user?.email}
+              </p>
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                {user?.username && user?.email ? user.email : user?.email || user?.role}
+              </p>
             </div>
             <LogoutButton />
           </div>

@@ -27,5 +27,5 @@ export const compareJobsByDefaultOrder = (a: Job, b: Job): number => {
   return String(a.id).localeCompare(String(b.id));
 };
 
-export const sortJobsByDefaultOrder = (jobs: Job[]): Job[] => [...jobs].sort(compareJobsByDefaultOrder);
-
+export const sortJobsByDefaultOrder = (jobs: Job[]): Job[] =>
+  [...jobs].sort(compareJobsByDefaultOrder);

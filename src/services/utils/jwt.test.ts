@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodeJwtPayload, getTokenExpiryMs } from './jwt';
 
-const base64Url = (obj: any) => {
+const base64Url = (obj: unknown) => {
   const json = JSON.stringify(obj);
   const b64 = Buffer.from(json, 'utf8').toString('base64');
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');

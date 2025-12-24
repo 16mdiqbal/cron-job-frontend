@@ -1,8 +1,8 @@
 import client from './client';
 
 export interface NotificationPreferences {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   email_on_job_success: boolean;
   email_on_job_failure: boolean;
   email_on_job_disabled: boolean;
@@ -37,7 +37,9 @@ export interface UpdatePreferencesResponse {
  * @param userId - The user ID
  * @returns The user's notification preferences
  */
-export const getNotificationPreferences = async (userId: number): Promise<NotificationPreferences> => {
+export const getNotificationPreferences = async (
+  userId: string
+): Promise<NotificationPreferences> => {
   const response = await client.get<GetPreferencesResponse>(`/auth/users/${userId}/preferences`);
   return response.data.preferences;
 };
@@ -49,7 +51,7 @@ export const getNotificationPreferences = async (userId: number): Promise<Notifi
  * @returns The updated notification preferences
  */
 export const updateNotificationPreferences = async (
-  userId: number,
+  userId: string,
   preferences: NotificationPreferencesUpdate
 ): Promise<NotificationPreferences> => {
   const response = await client.put<UpdatePreferencesResponse>(

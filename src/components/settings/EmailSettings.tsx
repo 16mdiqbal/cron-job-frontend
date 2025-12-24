@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/stores/authStore';
-import { Mail, Server, Key, TestTube } from 'lucide-react';
+import { Mail, Server, TestTube } from 'lucide-react';
 
 export const EmailSettings = () => {
   const { user } = useAuthStore();
@@ -90,9 +90,7 @@ export const EmailSettings = () => {
             <Server className="h-5 w-5" />
             <CardTitle>SMTP Server Configuration</CardTitle>
           </div>
-          <CardDescription>
-            Configure your SMTP server to send email notifications
-          </CardDescription>
+          <CardDescription>Configure your SMTP server to send email notifications</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

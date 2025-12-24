@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios, { type AxiosRequestHeaders, type InternalAxiosRequestConfig } from 'axios';
 import { setPostLoginRedirect } from '@/services/utils/authRedirect';
 import { authService } from '@/services/api/authService';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api/v2';
 
 // Create axios instance
 export const client = axios.create({
@@ -35,11 +35,18 @@ client.interceptors.response.use(
   (response) => {
     return response;
   },
-  async (error: any) => {
+  async (error: unknown) => {
+    if (!axios.isAxiosError(error)) {
+      console.error('Error:', error);
+      return Promise.reject(error);
+    }
+
     if (error.response) {
       const status = error.response.status;
-      const isLoginPage = typeof window !== 'undefined' && window.location.pathname.includes('/login');
-      const originalRequest = error.config;
+      const isLoginPage =
+        typeof window !== 'undefined' && window.location.pathname.includes('/login');
+      type RetryableRequestConfig = InternalAxiosRequestConfig & { __isRetryRequest?: boolean };
+      const originalRequest = error.config as RetryableRequestConfig | undefined;
 
       switch (status) {
         case 401:
@@ -57,10 +64,10 @@ client.interceptors.response.use(
             try {
               const newToken = await authService.refreshToken();
               localStorage.setItem('token', newToken);
-              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers = (originalRequest.headers ?? {}) as AxiosRequestHeaders;
               originalRequest.headers.Authorization = `Bearer ${newToken}`;
               return client(originalRequest);
-            } catch (e) {
+            } catch {
               // fallthrough to clearing + redirect
             }
           }
